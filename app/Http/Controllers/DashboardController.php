@@ -13,15 +13,19 @@ class DashboardController extends Controller
         // 1. HITUNG OMSET & TRANSAKSI HARI INI
         $today = Carbon::today();
         
+        // [UPDATE] Tambahkan where status != Batal agar omset bersih
         $todayOmset = DB::table('transactions')
                         ->whereDate('created_at', $today)
+                        ->where('status', '!=', 'Batal') 
                         ->sum('total_amount') ?? 0;
                         
+        // [UPDATE] Tambahkan where status != Batal agar jumlah struk valid
         $todayCount = DB::table('transactions')
                         ->whereDate('created_at', $today)
+                        ->where('status', '!=', 'Batal')
                         ->count();
 
-        // 2. CEK STOK MENIPIS
+        // 2. CEK STOK MENIPIS (Tidak ada perubahan)
         $lowStockMenus = DB::table('menus')
             ->where('stock', '<', 10)
             ->where('stock', '!=', -1)
@@ -35,14 +39,17 @@ class DashboardController extends Controller
             $date = Carbon::today()->subDays($i);
             $chartLabels[] = $date->format('d M');
             
+            // [UPDATE] Filter grafik juga agar tidak lonjakan palsu
             $sum = DB::table('transactions')
                 ->whereDate('created_at', $date)
+                ->where('status', '!=', 'Batal')
                 ->sum('total_amount') ?? 0;
                 
             $chartData[] = $sum;
         }
 
         // 4. DAFTAR TRANSAKSI TERBARU
+        // (Sengaja tidak difilter 'Batal', agar Admin tetap tahu ada aktivitas pembatalan di tabel history)
         $recentTransactions = DB::table('transactions')
             ->orderBy('created_at', 'desc')
             ->limit(5)

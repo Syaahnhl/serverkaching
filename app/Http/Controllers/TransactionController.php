@@ -139,4 +139,25 @@ class TransactionController extends Controller
 
         return view('transactions.index', compact('transactions'));
     }
+
+        public function cancel(Request $request, $id)
+    {
+        // Cari transaksi berdasarkan ID
+        $transaction = Transaction::find($id);
+
+        if (!$transaction) {
+            return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
+        }
+
+        // Ubah status jadi Batal
+        $transaction->status = 'Batal'; // Sesuaikan string ini dengan enum di database Anda (misal: 'cancelled')
+        
+        // Simpan alasan (opsional, jika ada kolom cancel_reason di tabel)
+        // $transaction->cancel_reason = $request->reason; 
+        
+        $transaction->save();
+
+        return response()->json(['message' => 'Berhasil dibatalkan', 'data' => $transaction]);
+    }
+
 }

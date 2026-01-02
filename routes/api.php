@@ -25,3 +25,5 @@ Route::post('/expenses', [ExpenseController::class, 'store']);
 Route::get('/cash-flows', [CashFlowController::class, 'index']); 
 Route::post('/cash-flows', [CashFlowController::class, 'store']); 
 Route::post('/reservations', [ReservationController::class, 'store']);
+
+Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
