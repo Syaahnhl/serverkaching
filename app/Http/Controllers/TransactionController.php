@@ -6,11 +6,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
+use App\Models\Transaction; // Gunakan Model yang baru dibuat
 
 class TransactionController extends Controller
 {
     /**
-     * FUNGSI 1: Ambil semua data transaksi (GET)
+     * FUNGSI 1: Ambil semua data transaksi (API GET untuk Android Sync)
      */
     public function index()
     {
@@ -26,7 +27,7 @@ class TransactionController extends Controller
     }
 
     /**
-     * FUNGSI 2: Simpan data dari Android (POST) - FIXED
+     * FUNGSI 2: Simpan data dari Android (API POST)
      */
     public function store(Request $request)
     {
@@ -41,8 +42,10 @@ class TransactionController extends Controller
                 'items.*.name' => 'required|string',
                 'items.*.qty' => 'required|integer',
                 'items.*.price' => 'required|numeric',
-                // [FIX] Pastikan server menerima field ini (nullable gpp)
+                
+                // [UPDATE] Validasi untuk dua kolom nama berbeda
                 'cashier_name' => 'nullable|string', 
+                'customer_name' => 'nullable|string', 
                 'table_number' => 'nullable|string',
             ]);
 
@@ -54,20 +57,21 @@ class TransactionController extends Controller
                 ], 422);
             }
 
+            // Gunakan DB Transaction agar data aman
             $id = DB::transaction(function () use ($request) {
                 
-                // 2. SIMPAN HEADER TRANSAKSI (BAGIAN PENTING!)
+                // 2. SIMPAN HEADER TRANSAKSI
                 $trxId = DB::table('transactions')->insertGetId([
                     'app_uuid' => $request->app_uuid,
                     'total_amount' => $request->total_amount,
                     'payment_method' => $request->payment_method,
                     
-                    // [FIX] SIMPAN DATA MEJA & NAMA PELANGGAN DISINI
-                    // Ambil dari request, default ke 'Admin' atau NULL jika tidak ada
-                    'cashier_name' => $request->input('cashier_name', 'Pelanggan'), 
-                    'table_number' => $request->input('table_number'), // Ini yang bikin KDS muncul meja
+                    // [UPDATE PENTING] Pisahkan Kasir dan Pelanggan
+                    'customer_name' => $request->input('customer_name', 'Pelanggan'), // Nama pembeli (Ipung/Qwer)
+                    'cashier_name' => $request->input('cashier_name', 'Kasir HP'),   // Nama penjaga toko
                     
-                    'status' => 'pending', // Wajib pending biar masuk KDS
+                    'table_number' => $request->input('table_number'),
+                    'status' => 'pending', 
                     'created_at_device' => Carbon::parse($request->created_at_device),
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -75,10 +79,13 @@ class TransactionController extends Controller
 
                 // 3. SIMPAN ITEM & POTONG STOK
                 foreach ($request->items as $item) {
-                    // Simpan history belanja
+                    
                     DB::table('transaction_items')->insert([
                         'transaction_id' => $trxId,
-                        'menu_name' => $item['name'],
+                        
+                        // [FIX] GUNAKAN 'menu_name' SESUAI SCREENSHOT KAMU
+                        'menu_name' => $item['name'], 
+                        
                         'qty' => $item['qty'],
                         'price' => $item['price'],
                         'note' => $item['note'] ?? null,
@@ -86,15 +93,12 @@ class TransactionController extends Controller
                         'updated_at' => now(),
                     ]);
 
-                    // Update Stok
-                    // Kita cari menu yang namanya SAMA dengan yang dibeli
+                    // Update Stok Otomatis
                     $menu = DB::table('menus')->where('name', $item['name'])->first();
 
                     if ($menu) {
-                        // Jika stok tidak unlimited (-1), kurangi stoknya
                         if ($menu->stock != -1) {
                             $qtyBeli = $item['qty'];
-                            // Query langsung biar cepat (Decrement)
                             DB::table('menus')
                                 ->where('id', $menu->id)
                                 ->decrement('stock', $qtyBeli);
@@ -122,30 +126,17 @@ class TransactionController extends Controller
     }
 
     /**
-     * FUNGSI 3: Dashboard Web
+     * FUNGSI 3: [BARU] TAMPILAN WEB RIWAYAT TRANSAKSI (Dengan Detail Item)
+     * Diakses lewat: localhost:8000/history
      */
-    public function dashboard()
+    public function webIndex()
     {
-        // 1. Ambil Transaksi Utama
-        $transactions = DB::table('transactions')
+        // Gunakan Model Transaction yang sudah punya relasi 'items'
+        // orderBy 'created_at_device' agar urut dari terbaru
+        $transactions = Transaction::with('items')
                         ->orderBy('created_at_device', 'desc')
-                        ->get();
+                        ->paginate(10); // Tampilkan 10 per halaman
 
-        // 2. Ambil Semua Item
-        $items = DB::table('transaction_items')->get();
-
-        // 3. Gabungkan (Mapping manual)
-        $transactions->map(function ($trx) use ($items) {
-            $trx->detail_items = $items->where('transaction_id', $trx->id);
-            return $trx;
-        });
-
-        // 4. Hitung Total Omset
-        $totalOmset = $transactions->sum('total_amount');
-
-        return view('dashboard', [
-            'transactions' => $transactions,
-            'totalOmset' => $totalOmset
-        ]);
+        return view('transactions.index', compact('transactions'));
     }
 }

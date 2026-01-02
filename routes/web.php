@@ -15,3 +15,4 @@ Route::get('/reports', [ReportController::class, 'index'])->name('reports.index'
 Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export');
 Route::get('/cash-flows', [CashFlowController::class, 'webIndex'])->name('cash_flows.index');
 Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
+Route::get('/history', [TransactionController::class, 'webIndex'])->name('transactions.history');
