@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\KitchenController; 
@@ -27,3 +28,4 @@ Route::post('/cash-flows', [CashFlowController::class, 'store']);
 Route::post('/reservations', [ReservationController::class, 'store']);
 
 Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
+Route::post('/login', [AuthController::class, 'login']);
