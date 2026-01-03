@@ -9,6 +9,7 @@ use App\Http\Controllers\KitchenController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\ReservationController;
+use App\Http\Controllers\Api\ShiftController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -29,3 +30,5 @@ Route::post('/reservations', [ReservationController::class, 'store']);
 
 Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/shift/open', [ShiftController::class, 'openShift']);
+Route::post('/shift/close', [ShiftController::class, 'closeShift']);
