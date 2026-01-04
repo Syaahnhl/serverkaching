@@ -24,6 +24,32 @@
 
         <div class="space-y-6">
             @forelse($transactions as $trx)
+            
+            @php
+                $rawName = $trx->customer_name ?? $trx->cashier_name ?? 'Pelanggan Umum';
+                $displayName = $rawName;
+                $displayInfo = '';
+
+                // Cek format "Nama (Info)"
+                if (Str::contains($rawName, '(') && Str::endsWith($rawName, ')')) {
+                    $displayName = Str::before($rawName, ' (');
+                    $infoPart = Str::between($rawName, '(', ')');
+
+                    // Cek Duplikat "Take Away - Take Away"
+                    if (Str::contains($infoPart, ' - ')) {
+                        $parts = explode(' - ', $infoPart);
+                        // Jika kiri == kanan (case insensitive), ambil satu aja
+                        if (count($parts) == 2 && strtolower(trim($parts[0])) == strtolower(trim($parts[1]))) {
+                            $displayInfo = trim($parts[0]);
+                        } else {
+                            $displayInfo = $infoPart; // Normal: Dine In - Meja 5
+                        }
+                    } else {
+                        $displayInfo = $infoPart; // Normal: Take Away (tanpa meja)
+                    }
+                }
+            @endphp
+
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 
                 <div class="{{ $trx->status == 'Batal' ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-200' }} px-6 py-4 border-b flex flex-wrap justify-between items-center gap-4">
@@ -32,9 +58,15 @@
                             #{{ $trx->id }}
                         </div>
                         <div>
-                            <div class="font-bold text-gray-900 text-lg">
-                                {{ $trx->customer_name ?? $trx->cashier_name ?? 'Pelanggan Umum' }}
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-gray-900 text-lg">{{ $displayName }}</span>
+                                @if($displayInfo)
+                                    <span class="bg-white border border-gray-300 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                        {{ $displayInfo }}
+                                    </span>
+                                @endif
                             </div>
+
                             <div class="text-xs text-gray-500 flex items-center gap-2 mt-1">
                                 <span>📅 {{ \Carbon\Carbon::parse($trx->created_at_device)->format('d M Y, H:i') }}</span>
                                 <span>•</span>
