@@ -15,20 +15,29 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+// --- TRANSACTIONS ---
 Route::post('/transactions', [TransactionController::class, 'store']);
 Route::get('/transactions', [TransactionController::class, 'index']);
-Route::get('/menus', [MenuController::class, 'index']);
-Route::get('/kitchen/orders', [KitchenController::class, 'index']); // Ambil pesanan
-Route::post('/kitchen/orders/{id}/done', [KitchenController::class, 'markAsDone']); // Tandai selesai
-// Route untuk Pengeluaran
+Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
+
+// --- MENUS ---
+Route::get('/menus', [MenuController::class, 'index']); // Sync (GET)
+Route::post('/menus', [MenuController::class, 'store']); // <--- [WAJIB DITAMBAHKAN] Input Baru (POST)
+
+// --- KITCHEN ---
+Route::get('/kitchen/orders', [KitchenController::class, 'index']);
+Route::post('/kitchen/orders/{id}/done', [KitchenController::class, 'markAsDone']);
+
+// --- EXPENSES ---
 Route::get('/expenses', [ExpenseController::class, 'index']); 
 Route::post('/expenses', [ExpenseController::class, 'store']);
-// Route Kas Kecil
+
+// --- CASH FLOW & RESERVATION ---
 Route::get('/cash-flows', [CashFlowController::class, 'index']); 
 Route::post('/cash-flows', [CashFlowController::class, 'store']); 
 Route::post('/reservations', [ReservationController::class, 'store']);
 
-Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
+// --- AUTH & SHIFT ---
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/shift/open', [ShiftController::class, 'openShift']);
 Route::post('/shift/close', [ShiftController::class, 'closeShift']);
