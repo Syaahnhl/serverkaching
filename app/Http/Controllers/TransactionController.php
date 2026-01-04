@@ -6,14 +6,32 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
-use App\Models\Transaction; // Gunakan Model yang baru dibuat
+use App\Models\Transaction; // Pastikan Model ini ada
 
 class TransactionController extends Controller
 {
     /**
-     * FUNGSI 1: Ambil semua data transaksi (API GET untuk Android Sync)
+     * FUNGSI 1: TAMPILAN WEB (Browser)
+     * Diakses lewat: localhost:8000/transactions
+     * Ini yang bikin UI cantik muncul.
      */
     public function index()
+    {
+        // Ambil data transaksi beserta item-nya, urutkan dari yang terbaru
+        $transactions = Transaction::with('items')
+                            ->orderBy('created_at_device', 'desc')
+                            ->paginate(10);
+
+        // Return ke file View (resources/views/transactions/index.blade.php)
+        return view('transactions.index', compact('transactions'));
+    }
+
+    /**
+     * FUNGSI 2: API SYNC (Untuk Android)
+     * Diakses lewat: localhost:8000/api/transactions
+     * Ini untuk sinkronisasi data ke HP.
+     */
+    public function apiSync()
     {
         $data = DB::table('transactions')
                     ->orderBy('created_at_device', 'desc')
@@ -27,7 +45,7 @@ class TransactionController extends Controller
     }
 
     /**
-     * FUNGSI 2: Simpan data dari Android (API POST)
+     * FUNGSI 3: Simpan data dari Android (API POST)
      */
     public function store(Request $request)
     {
@@ -42,8 +60,6 @@ class TransactionController extends Controller
                 'items.*.name' => 'required|string',
                 'items.*.qty' => 'required|integer',
                 'items.*.price' => 'required|numeric',
-                
-                // [UPDATE] Validasi untuk dua kolom nama berbeda
                 'cashier_name' => 'nullable|string', 
                 'customer_name' => 'nullable|string', 
                 'table_number' => 'nullable|string',
@@ -65,11 +81,8 @@ class TransactionController extends Controller
                     'app_uuid' => $request->app_uuid,
                     'total_amount' => $request->total_amount,
                     'payment_method' => $request->payment_method,
-                    
-                    // [UPDATE PENTING] Pisahkan Kasir dan Pelanggan
-                    'customer_name' => $request->input('customer_name', 'Pelanggan'), // Nama pembeli (Ipung/Qwer)
-                    'cashier_name' => $request->input('cashier_name', 'Kasir HP'),   // Nama penjaga toko
-                    
+                    'customer_name' => $request->input('customer_name', 'Pelanggan'),
+                    'cashier_name' => $request->input('cashier_name', 'Kasir HP'),
                     'table_number' => $request->input('table_number'),
                     'status' => 'pending', 
                     'created_at_device' => Carbon::parse($request->created_at_device),
@@ -82,10 +95,7 @@ class TransactionController extends Controller
                     
                     DB::table('transaction_items')->insert([
                         'transaction_id' => $trxId,
-                        
-                        // [FIX] GUNAKAN 'menu_name' SESUAI SCREENSHOT KAMU
                         'menu_name' => $item['name'], 
-                        
                         'qty' => $item['qty'],
                         'price' => $item['price'],
                         'note' => $item['note'] ?? null,
@@ -124,40 +134,17 @@ class TransactionController extends Controller
             ], 500);
         }
     }
-
-    /**
-     * FUNGSI 3: [BARU] TAMPILAN WEB RIWAYAT TRANSAKSI (Dengan Detail Item)
-     * Diakses lewat: localhost:8000/history
-     */
-    public function webIndex()
+    
+    // Fungsi Cancel (Opsional)
+    public function cancel(Request $request, $id)
     {
-        // Gunakan Model Transaction yang sudah punya relasi 'items'
-        // orderBy 'created_at_device' agar urut dari terbaru
-        $transactions = Transaction::with('items')
-                        ->orderBy('created_at_device', 'desc')
-                        ->paginate(10); // Tampilkan 10 per halaman
-
-        return view('transactions.index', compact('transactions'));
-    }
-
-        public function cancel(Request $request, $id)
-    {
-        // Cari transaksi berdasarkan ID
         $transaction = Transaction::find($id);
-
         if (!$transaction) {
             return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
         }
-
-        // Ubah status jadi Batal
-        $transaction->status = 'Batal'; // Sesuaikan string ini dengan enum di database Anda (misal: 'cancelled')
-        
-        // Simpan alasan (opsional, jika ada kolom cancel_reason di tabel)
-        // $transaction->cancel_reason = $request->reason; 
-        
+        $transaction->status = 'Batal'; 
         $transaction->save();
 
         return response()->json(['message' => 'Berhasil dibatalkan', 'data' => $transaction]);
     }
-
 }

@@ -19,6 +19,8 @@ Route::get('/user', function (Request $request) {
 Route::post('/transactions', [TransactionController::class, 'store']);
 Route::get('/transactions', [TransactionController::class, 'index']);
 Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
+Route::get('/transactions', [TransactionController::class, 'apiSync']); // Arahkan ke apiSync
+Route::post('/transactions', [TransactionController::class, 'store']);
 
 // --- MENUS ---
 Route::get('/menus', [MenuController::class, 'index']); // Sync (GET)

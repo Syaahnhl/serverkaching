@@ -8,6 +8,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\CashFlowController; // <-- Jangan lupa import
 use App\Http\Controllers\ReservationController;
 
+
 // Saat buka halaman utama (localhost:8000), langsung panggil fungsi dashboard
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 Route::resource('menus', MenuController::class);
@@ -16,3 +17,4 @@ Route::get('/reports/export', [ReportController::class, 'export'])->name('report
 Route::get('/cash-flows', [CashFlowController::class, 'webIndex'])->name('cash_flows.index');
 Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
 Route::get('/history', [TransactionController::class, 'webIndex'])->name('transactions.history');
+Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
