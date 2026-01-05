@@ -126,4 +126,27 @@ class MenuController extends Controller
 
         return redirect()->back()->with('success', 'Menu dihapus!');
     }
+
+    // [BARU] FUNGSI UPDATE STOK DARI ANDROID
+    public function updateStock(Request $request, $id)
+    {
+        // 1. Cari Menu berdasarkan ID
+        $menu = DB::table('menus')->where('id', $id)->first();
+
+        if (!$menu) {
+            return response()->json(['status' => 'error', 'message' => 'Menu tidak ditemukan'], 404);
+        }
+
+        // 2. Update Stok
+        DB::table('menus')->where('id', $id)->update([
+            'stock' => $request->stock,
+            'updated_at' => now()
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Stok berhasil diupdate',
+            'data' => ['id' => $id, 'new_stock' => $request->stock]
+        ], 200);
+    }
 }

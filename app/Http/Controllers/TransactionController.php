@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use App\Models\Transaction; // Pastikan Model ini ada
+use Illuminate\Support\Facades\Log;
 
 class TransactionController extends Controller
 {
@@ -116,6 +117,21 @@ class TransactionController extends Controller
                     }
                 }
 
+                // Ambil data nomor meja dari request Android
+                $tableNumber = $request->input('table_number'); 
+                
+                // Cek jika ada nomor mejanya (bukan Take Away/Delivery)
+                if ($tableNumber) {
+                    // Bersihkan string jika formatnya "Meja 1" -> ambil "1" saja
+                    // (Opsional, tergantung Android kirimnya apa. Kalau Android kirim angka murni "1", ini aman)
+                    $cleanNumber = preg_replace('/[^0-9]/', '', $tableNumber);
+
+                    // Update tabel 'tables' set is_occupied = true (1)
+                    DB::table('tables')
+                        ->where('number', $cleanNumber) // Pastikan kolom 'number' di DB cocok
+                        ->update(['is_occupied' => true]);
+                }
+
                 return $trxId;
             });
 
@@ -138,13 +154,62 @@ class TransactionController extends Controller
     // Fungsi Cancel (Opsional)
     public function cancel(Request $request, $id)
     {
-        $transaction = Transaction::find($id);
-        if (!$transaction) {
-            return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
-        }
-        $transaction->status = 'Batal'; 
-        $transaction->save();
+        Log::info("=== MULAI PROSES CANCEL REQUEST: $id ===");
 
-        return response()->json(['message' => 'Berhasil dibatalkan', 'data' => $transaction]);
+        // 1. CARI TRANSAKSI (Logic Lebih Pintar)
+        // Coba cari pakai ID biasa (Primary Key)
+        $transaction = Transaction::find($id);
+
+        // Kalau gak ketemu, coba cari pakai app_uuid (Siapa tau Android kirim UUID atau ID Lokal)
+        if (!$transaction) {
+            Log::info("Cari by ID gagal. Mencoba cari by app_uuid...");
+            $transaction = Transaction::where('app_uuid', $id)->first();
+        }
+
+        // Kalau masih gak ketemu juga, baru nyerah
+        if (!$transaction) {
+            Log::error("FATAL: Transaksi dengan ID atau UUID '$id' benar-benar tidak ada di Database Server.");
+            return response()->json(['message' => 'Transaksi tidak ditemukan. Pastikan data sudah tersinkron.'], 404);
+        }
+
+        Log::info("Transaksi Ditemukan! ID Server: " . $transaction->id);
+
+        // 2. UBAH STATUS JADI BATAL
+        $transaction->status = 'Batal'; 
+        if ($request->has('reason')) {
+            $transaction->cancel_reason = $request->reason;
+        }
+        $transaction->save();
+        
+        // 3. UPDATE MEJA (Logic Regex yang sudah benar)
+        $tableInfo = $transaction->table_number; 
+            
+            if (!empty($tableInfo) && preg_match('/(\d+)/', $tableInfo, $matches)) {
+                
+                // [PERBAIKAN] Tambahkan (int) untuk memaksa jadi Angka Murni
+                $cleanNumber = (int)$matches[0]; 
+
+                // Debugging biar kelihatan di Log Laravel
+                Log::info("Mencoba update meja. Angka (Int): " . $cleanNumber);
+
+                // Update Tabel Meja
+                $affected = DB::table('tables')
+                    ->where('number', $cleanNumber) // Sekarang ini angka murni 1, bukan "1"
+                    ->update(['is_occupied' => 0]); 
+                
+                if ($affected) {
+                    Log::info("SUKSES: Meja $cleanNumber berhasil di-nol-kan.");
+                } else {
+                    // Kalau ini muncul di log, berarti nomor mejanya emang gak ada di tabel tables
+                    Log::error("GAGAL: Tidak ada baris yang berubah. Cek apakah meja nomor $cleanNumber ada di tabel 'tables'?");
+                }
+
+            }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Transaksi dibatalkan & Meja dibuka.',
+            'data' => $transaction
+        ]);
     }
 }
