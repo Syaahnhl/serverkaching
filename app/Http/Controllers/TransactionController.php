@@ -212,4 +212,43 @@ class TransactionController extends Controller
             'data' => $transaction
         ]);
     }
+
+    public function getKitchenOrders()
+    {
+        // BIANG KEROK 1: Query harus membuang status 'Batal'
+        $orders = DB::table('transactions')
+                    ->whereNotIn('status', ['Selesai', 'Batal', 'Served']) // <--- INI KUNCINYA
+                    ->orderBy('created_at', 'asc') // FIFO (First In First Out)
+                    ->get();
+
+        // Ambil detail item
+        $data = $orders->map(function ($order) {
+            $order->items = DB::table('transaction_items')
+                              ->where('transaction_id', $order->id)
+                              ->get();
+            return $order;
+        });
+
+        return response()->json([
+            'status' => 'success', 
+            'data' => $data
+        ], 200);
+    }
+
+    // FUNGSI KHUSUS TOMBOL SELESAI DI KDS
+    public function markAsServed(Request $request, $id)
+    {
+        $transaction = Transaction::find($id);
+        if (!$transaction) return response()->json(['message' => 'Not found'], 404);
+
+        // HANYA Ubah Status jadi 'Served' agar hilang dari layar KDS
+        // JANGAN ubah status meja (is_occupied) di sini!
+        $transaction->status = 'Served'; 
+        $transaction->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Pesanan siap disajikan. Meja masih terkunci.'
+        ]);
+    }
 }
