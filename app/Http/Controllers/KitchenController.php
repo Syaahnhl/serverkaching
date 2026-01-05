@@ -35,13 +35,23 @@ class KitchenController extends Controller
     // 2. TANDAI PESANAN SELESAI (Masakan Jadi)
     public function markAsDone($id)
     {
-        DB::table('transactions')
+        // 1. Coba Update
+        $affected = DB::table('transactions')
             ->where('id', $id)
-            ->update(['status' => 'done', 'updated_at' => now()]);
+            // Pastikan kita update data yang BELUM done saja
+            ->where('status', '!=', 'done') 
+            ->update([
+                'status' => 'done', 
+                'updated_at' => now()
+            ]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Pesanan selesai!'
-        ], 200);
+        // 2. Cek Hasilnya (Jujur-jujuran)
+        if ($affected > 0) {
+            return response()->json(['status' => 'success'], 200);
+        } else {
+            // Kalau tidak ada yang berubah, JANGAN BILANG SUKSES!
+            // Kembalikan 404 agar Android tahu ID-nya salah.
+            return response()->json(['message' => 'Gagal update/Data tidak ditemukan'], 404);
+        }
     }
 }

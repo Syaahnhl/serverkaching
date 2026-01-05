@@ -37,7 +37,7 @@ Route::post('/menus', [MenuController::class, 'store']);
 Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']);
 
 // --- KITCHEN ---
-Route::get('/kitchen/orders', [TransactionController::class, 'getKitchenOrders']);
+Route::get('/kitchen/orders', [KitchenController::class, 'index']);
 Route::post('/kitchen/orders/{id}/done', [KitchenController::class, 'markAsDone']);
 
 // --- TABLES ---
