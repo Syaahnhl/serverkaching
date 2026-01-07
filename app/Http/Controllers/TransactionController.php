@@ -11,11 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class TransactionController extends Controller
 {
-    /**
-     * FUNGSI 1: TAMPILAN WEB (Browser)
-     * Diakses lewat: localhost:8000/transactions
-     * Ini yang bikin UI cantik muncul.
-     */
+    // ... (Fungsi index dan apiSync BIARKAN SAJA, tidak perlu diubah) ...
     public function index()
     {
         // Ambil data transaksi beserta item-nya, urutkan dari yang terbaru
@@ -27,11 +23,6 @@ class TransactionController extends Controller
         return view('transactions.index', compact('transactions'));
     }
 
-    /**
-     * FUNGSI 2: API SYNC (Untuk Android)
-     * Diakses lewat: localhost:8000/api/transactions
-     * Ini untuk sinkronisasi data ke HP.
-     */
     public function apiSync()
     {
         $data = DB::table('transactions')
@@ -45,9 +36,7 @@ class TransactionController extends Controller
         ], 200);
     }
 
-    /**
-     * FUNGSI 3: Simpan data dari Android (API POST)
-     */
+    // FUNGSI 3: Simpan data dari Android (API POST)
     public function store(Request $request)
     {
         try {
@@ -64,6 +53,7 @@ class TransactionController extends Controller
                 'cashier_name' => 'nullable|string', 
                 'customer_name' => 'nullable|string', 
                 'table_number' => 'nullable|string',
+                // 'status' => 'nullable|string' // Status opsional dari HP
             ]);
 
             if ($validator->fails()) {
@@ -77,6 +67,15 @@ class TransactionController extends Controller
             // Gunakan DB Transaction agar data aman
             $id = DB::transaction(function () use ($request) {
                 
+                // [BARU] Tentukan Status Default
+                // Jika Android tidak kirim status, kita tentukan sendiri di sini.
+                $trxStatus = 'Proses'; // Default jadi PROSES agar masuk KDS
+
+                // Cek jika metodenya "Bayar Nanti" (Bon), set jadi Belum Lunas
+                if ($request->payment_method === 'Bayar Nanti') {
+                    $trxStatus = 'Belum Lunas';
+                }
+
                 // 2. SIMPAN HEADER TRANSAKSI
                 $trxId = DB::table('transactions')->insertGetId([
                     'app_uuid' => $request->app_uuid,
@@ -85,7 +84,10 @@ class TransactionController extends Controller
                     'customer_name' => $request->input('customer_name', 'Pelanggan'),
                     'cashier_name' => $request->input('cashier_name', 'Kasir HP'),
                     'table_number' => $request->input('table_number'),
-                    'status' => 'pending', 
+                    
+                    // [BARU] Gunakan status yang sudah kita tentukan di atas
+                    'status' => $trxStatus, 
+                    
                     'created_at_device' => Carbon::parse($request->created_at_device),
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -117,27 +119,24 @@ class TransactionController extends Controller
                     }
                 }
 
-                // Ambil data nomor meja dari request Android
+                // [BARU] BAGIAN UPDATE MEJA MANUAL DIHAPUS/KOMENTAR
+                // Karena 'TableController' sudah otomatis membaca status 'Proses'
+                /*
                 $tableNumber = $request->input('table_number'); 
-                
-                // Cek jika ada nomor mejanya (bukan Take Away/Delivery)
                 if ($tableNumber) {
-                    // Bersihkan string jika formatnya "Meja 1" -> ambil "1" saja
-                    // (Opsional, tergantung Android kirimnya apa. Kalau Android kirim angka murni "1", ini aman)
                     $cleanNumber = preg_replace('/[^0-9]/', '', $tableNumber);
-
-                    // Update tabel 'tables' set is_occupied = true (1)
                     DB::table('tables')
-                        ->where('number', $cleanNumber) // Pastikan kolom 'number' di DB cocok
+                        ->where('number', $cleanNumber)
                         ->update(['is_occupied' => true]);
                 }
+                */
 
                 return $trxId;
             });
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Transaksi Berhasil & Stok Berkurang!',
+                'message' => 'Transaksi Berhasil & Masuk Antrian!',
                 'server_id' => $id
             ], 201);
 
@@ -150,6 +149,10 @@ class TransactionController extends Controller
             ], 500);
         }
     }
+    
+    // ... (Fungsi cancel, getKitchenOrders, markAsServed BIARKAN SAMA PERSIS) ...
+    // Copy-paste saja bagian bawah kode lama kamu ke sini kalau mau lengkap
+    // Saya ringkas agar fokus ke perubahan di fungsi store()
     
     // Fungsi Cancel (Opsional)
     public function cancel(Request $request, $id)
