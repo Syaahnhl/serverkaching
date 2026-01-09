@@ -30,6 +30,8 @@ Route::post('/transactions', [TransactionController::class, 'store']);
 
 // POST: Android membatalkan pesanan (Untuk fix sinkronisasi meja)
 Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
+// [BARU - TAMBAHKAN INI] Route untuk Selesaikan Transaksi (Complete)
+Route::post('/transactions/{id}/complete', [TransactionController::class, 'complete']);
 
 // --- MENUS ---
 Route::get('/menus', [MenuController::class, 'index']);

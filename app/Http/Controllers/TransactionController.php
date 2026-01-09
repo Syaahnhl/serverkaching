@@ -121,18 +121,24 @@ class TransactionController extends Controller
 
                 // [BARU] BAGIAN UPDATE MEJA MANUAL DIHAPUS/KOMENTAR
                 // Karena 'TableController' sudah otomatis membaca status 'Proses'
-                /*
+                // [PERBAIKAN] Bagian ini WAJIB DIAKTIFKAN agar is_occupied di database berubah jadi 1
                 $tableNumber = $request->input('table_number'); 
+                    
                 if ($tableNumber) {
+                        // Ambil angkanya saja (misal "Meja 1" -> "1")
                     $cleanNumber = preg_replace('/[^0-9]/', '', $tableNumber);
-                    DB::table('tables')
-                        ->where('number', $cleanNumber)
-                        ->update(['is_occupied' => true]);
-                }
-                */
+                        
+                        // Update tabel 'tables' set is_occupied = 1 (TRUE)
+                        DB::table('tables')
+                            ->where('number', $cleanNumber)
+                            ->update([
+                                'is_occupied' => true, 
+                                'updated_at' => now()
+                            ]);    
+                    }
 
-                return $trxId;
-            });
+                    return $trxId;
+                });
 
             return response()->json([
                 'status' => 'success',
@@ -252,6 +258,45 @@ class TransactionController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Pesanan siap disajikan. Meja masih terkunci.'
+        ]);
+    }
+
+    // [BARU] FUNGSI KHUSUS UNTUK MENYELESAIKAN TRANSAKSI & KOSONGKAN MEJA
+    // Endpoint: POST /transactions/{id}/complete
+    public function complete(Request $request, $id)
+    {
+        Log::info("=== MENYELESAIKAN TRANSAKSI: $id ===");
+
+        // 1. Cari Transaksi (Support ID Server atau UUID)
+        $transaction = Transaction::find($id);
+        if (!$transaction) {
+            $transaction = Transaction::where('app_uuid', $id)->first();
+        }
+
+        if (!$transaction) {
+            return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
+        }
+
+        // 2. Ubah Status Jadi 'Selesai' (BUKAN BATAL)
+        $transaction->status = 'Selesai';
+        $transaction->save();
+
+        // 3. Kosongkan Meja (Logic sama seperti cancel)
+        $tableInfo = $transaction->table_number;
+        if (!empty($tableInfo) && preg_match('/(\d+)/', $tableInfo, $matches)) {
+            $cleanNumber = (int)$matches[0];
+            
+            DB::table('tables')
+                ->where('number', $cleanNumber)
+                ->update(['is_occupied' => 0]); // Set jadi Kosong
+            
+            Log::info("Meja $cleanNumber berhasil dikosongkan.");
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Transaksi Selesai & Meja Kosong.',
+            'data' => $transaction
         ]);
     }
 }

@@ -9,16 +9,22 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Masukkan data menu contoh
+        // 1. Panggil Seeder Meja (Agar Meja dibuat otomatis)
+        $this->call([
+            TableSeeder::class,
+        ]);
+
+        // 2. Masukkan data menu contoh (Kode lama Anda)
+        // Tips: Jika data menu makin banyak, sebaiknya pindahkan ke MenuSeeder.php terpisah
         DB::table('menus')->insert([
             [
                 'name' => 'Nasi Goreng Spesial',
                 'category' => 'Makanan',
                 'price' => 25000,
-                'cost_price' => 15000, // Modal
+                'cost_price' => 15000,
                 'stock' => 50,
                 'image_url' => null,
-                'has_variant' => true, // Ada pedas/sedang
+                'has_variant' => true,
                 'description' => 'Nasi goreng mantap',
                 'is_available' => true,
                 'created_at' => now(),
@@ -31,7 +37,7 @@ class DatabaseSeeder extends Seeder
                 'cost_price' => 2000,
                 'stock' => 100,
                 'image_url' => null,
-                'has_variant' => true, // Ada less sugar/normal
+                'has_variant' => true,
                 'description' => 'Segar',
                 'is_available' => true,
                 'created_at' => now(),

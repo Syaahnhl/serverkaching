@@ -9,22 +9,32 @@ class TableSeeder extends Seeder
 {
     public function run()
     {
-        // Buat Meja 1-10 (Indoor)
-        for ($i = 1; $i <= 10; $i++) {
+        // 1. Matikan cek Foreign Key & Kosongkan Table (Agar ID Reset ke 1)
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('tables')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        $now = now();
+
+        // 2. Buat Meja 1-15 (Indoor Utama)
+        for ($i = 1; $i <= 15; $i++) {
             DB::table('tables')->insert([
                 'number' => (string)$i,
                 'area' => 'Indoor Utama',
                 'is_occupied' => false,
-                'created_at' => now(), 'updated_at' => now()
+                'created_at' => $now,
+                'updated_at' => $now
             ]);
         }
-        // Buat Meja 11-15 (Outdoor)
-        for ($i = 11; $i <= 15; $i++) {
+
+        // 3. Buat Meja 16-30 (Outdoor)
+        for ($i = 16; $i <= 30; $i++) {
             DB::table('tables')->insert([
                 'number' => (string)$i,
                 'area' => 'Outdoor',
                 'is_occupied' => false,
-                'created_at' => now(), 'updated_at' => now()
+                'created_at' => $now,
+                'updated_at' => $now
             ]);
         }
     }
