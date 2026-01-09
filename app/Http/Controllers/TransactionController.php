@@ -44,6 +44,7 @@ class TransactionController extends Controller
             $validator = Validator::make($request->all(), [
                 'app_uuid' => 'required|string',
                 'total_amount' => 'required|numeric',
+                'pay_amount' => 'required|numeric',
                 'payment_method' => 'required|string',
                 'created_at_device' => 'required|date',
                 'items' => 'required|array', 
@@ -80,6 +81,7 @@ class TransactionController extends Controller
                 $trxId = DB::table('transactions')->insertGetId([
                     'app_uuid' => $request->app_uuid,
                     'total_amount' => $request->total_amount,
+                    'pay_amount' => $request->pay_amount,
                     'payment_method' => $request->payment_method,
                     'customer_name' => $request->input('customer_name', 'Pelanggan'),
                     'cashier_name' => $request->input('cashier_name', 'Kasir HP'),
