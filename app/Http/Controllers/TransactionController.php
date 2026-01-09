@@ -40,6 +40,18 @@ class TransactionController extends Controller
     public function store(Request $request)
     {
         try {
+            // [FIX 1: ANTI DUPLIKAT - WAJIB ADA]
+            // Cek apakah UUID ini sudah masuk sebelumnya?
+            // Jika ya, return sukses (anggap sudah tersimpan) agar Android tidak kirim ulang.
+            $existing = Transaction::where('app_uuid', $request->app_uuid)->first();
+            if ($existing) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Data duplikat terdeteksi (Aman).',
+                    'server_id' => $existing->id
+                ], 200);
+            }
+
             // 1. Validasi Input
             $validator = Validator::make($request->all(), [
                 'app_uuid' => 'required|string',
@@ -47,20 +59,24 @@ class TransactionController extends Controller
                 'pay_amount' => 'required|numeric',
                 'payment_method' => 'required|string',
                 'created_at_device' => 'required|date',
-                'items' => 'required|array', 
+                
+                // [FIX 2: ANTI HANTU - WAJIB ADA]
+                // 'min:1' memastikan array tidak boleh kosong.
+                // Jika Android kirim header tapi itemnya 0, server akan MENOLAK.
+                'items' => 'required|array|min:1', 
+                
                 'items.*.name' => 'required|string',
                 'items.*.qty' => 'required|integer',
                 'items.*.price' => 'required|numeric',
                 'cashier_name' => 'nullable|string', 
                 'customer_name' => 'nullable|string', 
                 'table_number' => 'nullable|string',
-                // 'status' => 'nullable|string' // Status opsional dari HP
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Validasi Gagal',
+                    'message' => 'Validasi Gagal: Item kosong atau data tidak lengkap.',
                     'errors' => $validator->errors()
                 ], 422);
             }
@@ -68,11 +84,8 @@ class TransactionController extends Controller
             // Gunakan DB Transaction agar data aman
             $id = DB::transaction(function () use ($request) {
                 
-                // [BARU] Tentukan Status Default
-                // Jika Android tidak kirim status, kita tentukan sendiri di sini.
-                $trxStatus = 'Proses'; // Default jadi PROSES agar masuk KDS
-
-                // Cek jika metodenya "Bayar Nanti" (Bon), set jadi Belum Lunas
+                // Tentukan Status Default
+                $trxStatus = 'Proses'; 
                 if ($request->payment_method === 'Bayar Nanti') {
                     $trxStatus = 'Belum Lunas';
                 }
@@ -86,10 +99,7 @@ class TransactionController extends Controller
                     'customer_name' => $request->input('customer_name', 'Pelanggan'),
                     'cashier_name' => $request->input('cashier_name', 'Kasir HP'),
                     'table_number' => $request->input('table_number'),
-                    
-                    // [BARU] Gunakan status yang sudah kita tentukan di atas
-                    'status' => $trxStatus, 
-                    
+                    'status' => $trxStatus,
                     'created_at_device' => Carbon::parse($request->created_at_device),
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -97,64 +107,43 @@ class TransactionController extends Controller
 
                 // 3. SIMPAN ITEM & POTONG STOK
                 foreach ($request->items as $item) {
-                    
                     DB::table('transaction_items')->insert([
                         'transaction_id' => $trxId,
                         'menu_name' => $item['name'], 
                         'qty' => $item['qty'],
                         'price' => $item['price'],
                         'note' => $item['note'] ?? null,
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                        'created_at' => now(), 'updated_at' => now()
                     ]);
 
                     // Update Stok Otomatis
                     $menu = DB::table('menus')->where('name', $item['name'])->first();
-
-                    if ($menu) {
-                        if ($menu->stock != -1) {
-                            $qtyBeli = $item['qty'];
-                            DB::table('menus')
-                                ->where('id', $menu->id)
-                                ->decrement('stock', $qtyBeli);
-                        }
+                    if ($menu && $menu->stock != -1) {
+                        DB::table('menus')->where('id', $menu->id)->decrement('stock', $item['qty']);
                     }
                 }
 
-                // [BARU] BAGIAN UPDATE MEJA MANUAL DIHAPUS/KOMENTAR
-                // Karena 'TableController' sudah otomatis membaca status 'Proses'
-                // [PERBAIKAN] Bagian ini WAJIB DIAKTIFKAN agar is_occupied di database berubah jadi 1
+                // 4. Update Meja
                 $tableNumber = $request->input('table_number'); 
-                    
                 if ($tableNumber) {
-                        // Ambil angkanya saja (misal "Meja 1" -> "1")
                     $cleanNumber = preg_replace('/[^0-9]/', '', $tableNumber);
-                        
-                        // Update tabel 'tables' set is_occupied = 1 (TRUE)
-                        DB::table('tables')
-                            ->where('number', $cleanNumber)
-                            ->update([
-                                'is_occupied' => true, 
-                                'updated_at' => now()
-                            ]);    
+                    if ($cleanNumber) {
+                        DB::table('tables')->where('number', $cleanNumber)
+                            ->update(['is_occupied' => true, 'updated_at' => now()]);    
                     }
+                }
 
-                    return $trxId;
-                });
+                return $trxId;
+            });
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Transaksi Berhasil & Masuk Antrian!',
+                'message' => 'Transaksi Berhasil!',
                 'server_id' => $id
             ], 201);
 
         } catch (\Throwable $e) {
-            return response()->json([
-                'status' => 'fatal_error',
-                'message' => $e->getMessage(),
-                'line' => $e->getLine(),
-                'file' => basename($e->getFile())
-            ], 500);
+            return response()->json(['status' => 'fatal_error', 'message' => $e->getMessage()], 500);
         }
     }
     
@@ -252,14 +241,30 @@ class TransactionController extends Controller
         $transaction = Transaction::find($id);
         if (!$transaction) return response()->json(['message' => 'Not found'], 404);
 
-        // HANYA Ubah Status jadi 'Served' agar hilang dari layar KDS
-        // JANGAN ubah status meja (is_occupied) di sini!
-        $transaction->status = 'Served'; 
+        // [LOGIKA BARU: Cek Pembayaran]
+        if ($transaction->pay_amount >= $transaction->total_amount) {
+            // SKENARIO 1: SUDAH LUNAS
+            // Langsung ubah status jadi 'Selesai' agar masuk tab History/Selesai
+            $transaction->status = 'Selesai';
+            
+            // Otomatis Kosongkan Meja
+            $tableInfo = $transaction->table_number;
+            if (!empty($tableInfo) && preg_match('/(\d+)/', $tableInfo, $matches)) {
+                $cleanNumber = (int)$matches[0];
+                DB::table('tables')->where('number', $cleanNumber)->update(['is_occupied' => 0]);
+            }
+        } else {
+            // SKENARIO 2: BELUM LUNAS
+            // Ubah jadi 'Served' (Sudah disajikan, tapi belum bayar lunas)
+            // Ini akan kita filter di Android agar masuk tab "Belum Bayar" saja
+            $transaction->status = 'Served';
+        }
+
         $transaction->save();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Pesanan siap disajikan. Meja masih terkunci.'
+            'message' => 'Status pesanan diperbarui.'
         ]);
     }
 
