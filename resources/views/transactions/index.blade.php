@@ -15,7 +15,7 @@
         <div class="flex justify-between items-center mb-8">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900">🧾 Riwayat Transaksi</h1>
-                <p class="text-gray-500 text-sm mt-1">Daftar struk penjualan lengkap.</p>
+                <p class="text-gray-500 text-sm mt-1">Pantau status pembayaran, pesanan dapur, dan tipe order.</p>
             </div>
             <a href="{{ url('/') }}" class="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg font-bold text-gray-700 shadow-sm transition">
                 Kembali ke Dashboard
@@ -24,74 +24,91 @@
 
         <div class="space-y-6">
             @forelse($transactions as $trx)
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            
+            @php $style = $trx->status_style; @endphp
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition duration-200">
                 
-                <div class="{{ $trx->status == 'Batal' ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-200' }} px-6 py-4 border-b flex flex-wrap justify-between items-center gap-4">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-full {{ $trx->status == 'Batal' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600' }} flex items-center justify-center font-bold text-sm">
-                            #{{ $trx->id }}
+                <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap justify-between items-start gap-4 {{ $trx->status == 'Batal' ? 'bg-gray-50' : 'bg-white' }}">
+                    
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-xl {{ $style['color'] }} flex items-center justify-center text-xl shadow-sm">
+                            {{ $style['icon'] }}
                         </div>
+
                         <div>
-                            <div class="font-bold text-gray-900 text-lg">
-                                {{ $trx->customer_name ?? $trx->cashier_name ?? 'Pelanggan Umum' }}
-                            </div>
-                            <div class="text-xs text-gray-500 flex items-center gap-2 mt-1">
-                                <span>📅 {{ \Carbon\Carbon::parse($trx->created_at_device)->format('d M Y, H:i') }}</span>
-                                <span>•</span>
-                                <span class="bg-gray-200 px-2 py-0.5 rounded text-gray-700 font-semibold text-[10px] uppercase">
-                                    {{ $trx->payment_method }}
+                            <div class="flex items-center gap-2 mb-1">
+                                <h3 class="font-bold text-gray-900 text-lg">
+                                    {{ preg_replace('/\s*\(.*?\)\s*/', '', $trx->customer_name) ?: 'Pelanggan Umum' }}
+                                </h3>
+                                
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide {{ $trx->type_color }}">
+                                    {{ $trx->order_type }}
                                 </span>
-                                <span class="text-gray-400 italic">(Kasir: {{ $trx->cashier_name ?? '-' }})</span>
+                            </div>
+
+                            <div class="text-xs text-gray-500 flex flex-wrap items-center gap-3">
+                                <span class="flex items-center gap-1">
+                                    🕒 {{ \Carbon\Carbon::parse($trx->created_at_device)->format('d M Y, H:i') }}
+                                </span>
+                                
+                                @if($trx->table_number && $trx->table_number != '-')
+                                <span class="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-semibold">
+                                    🪑 {{ $trx->table_number }}
+                                </span>
+                                @endif
+
+                                <span class="text-gray-400">| Kasir: {{ $trx->cashier_name ?? '-' }}</span>
                             </div>
                         </div>
                     </div>
 
                     <div class="text-right">
-                        @if($trx->status == 'Batal')
-                            <div class="inline-block px-2 py-1 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase tracking-wider mb-1">
-                                DIBATALKAN
+                        <div class="inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border mb-2 {{ $style['color'] }}">
+                            {{ $style['label'] }}
+                        </div>
+
+                        <div class="text-xl font-bold {{ $trx->status == 'Batal' ? 'text-gray-400 line-through' : 'text-gray-900' }}">
+                            Rp {{ number_format($trx->total_amount, 0, ',', '.') }}
+                        </div>
+
+                        @if($trx->status != 'Batal')
+                            <div class="text-xs mt-1 font-medium {{ $trx->pay_amount >= $trx->total_amount ? 'text-green-600' : 'text-orange-500' }}">
+                                @if($trx->pay_amount >= $trx->total_amount)
+                                    <span class="flex items-center justify-end gap-1">LUNAS via {{ $trx->payment_method }}</span>
+                                @else
+                                    <span class="flex items-center justify-end gap-1">KURANG: Rp {{ number_format($trx->total_amount - $trx->pay_amount, 0, ',', '.') }}</span>
+                                @endif
                             </div>
-                            <div class="text-xl font-bold text-gray-400 line-through">
-                                Rp {{ number_format($trx->total_amount, 0, ',', '.') }}
-                            </div>
-                            @if(isset($trx->cancel_reason))
-                                <div class="text-xs text-red-500 mt-1 italic">
-                                    "{{ $trx->cancel_reason }}"
-                                </div>
-                            @endif
                         @else
-                            <div class="text-xs text-gray-500 uppercase tracking-wide">Total Bayar</div>
-                            <div class="text-xl font-bold text-green-600">
-                                Rp {{ number_format($trx->total_amount, 0, ',', '.') }}
-                            </div>
+                             <div class="text-xs text-red-500 mt-1 italic">Alasan: "{{ $trx->cancel_reason ?? '-' }}"</div>
                         @endif
                     </div>
                 </div>
 
-                <div class="px-6 py-4 bg-white">
+                @if($trx->status != 'Batal')
+                <div class="px-6 py-4 bg-gray-50/50">
                     <table class="w-full text-sm text-left">
-                        <thead class="text-gray-400 font-medium border-b border-gray-100">
+                        <thead class="text-gray-400 text-xs uppercase font-semibold border-b border-gray-200">
                             <tr>
-                                <th class="pb-2 w-1/2">Menu</th>
+                                <th class="pb-2 pl-2">Menu Pesanan</th>
                                 <th class="pb-2 text-center">Qty</th>
-                                <th class="pb-2 text-right">Harga</th>
-                                <th class="pb-2 text-right">Subtotal</th>
+                                <th class="pb-2 text-right pr-2">Total</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50">
+                        <tbody class="divide-y divide-gray-100">
                             @foreach($trx->items as $item)
                             <tr>
-                                <td class="py-3">
-                                    <div class="font-bold text-gray-700 text-base">
-                                        {{ $item->menu_name ?? $item->name ?? 'Item Tanpa Nama' }}
+                                <td class="py-2 pl-2">
+                                    <div class="font-medium text-gray-700">
+                                        {{ $item->menu_name ?? $item->name }}
                                     </div>
                                     @if($item->note)
-                                        <div class="text-xs text-orange-500 italic mt-0.5">Catatan: "{{ $item->note }}"</div>
+                                        <div class="text-[10px] text-orange-500 italic">"{{ $item->note }}"</div>
                                     @endif
                                 </td>
-                                <td class="py-3 text-center font-bold text-gray-600">x{{ $item->qty }}</td>
-                                <td class="py-3 text-right text-gray-500">{{ number_format($item->price, 0, ',', '.') }}</td>
-                                <td class="py-3 text-right font-bold {{ $trx->status == 'Batal' ? 'text-gray-400 line-through' : 'text-gray-800' }}">
+                                <td class="py-2 text-center text-gray-500">x{{ $item->qty }}</td>
+                                <td class="py-2 text-right pr-2 font-medium text-gray-700">
                                     {{ number_format($item->price * $item->qty, 0, ',', '.') }}
                                 </td>
                             </tr>
@@ -99,12 +116,13 @@
                         </tbody>
                     </table>
                 </div>
+                @endif
             </div>
             @empty
-            <div class="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300">
-                <div class="text-6xl mb-4">📭</div>
-                <h3 class="text-xl font-bold text-gray-400">Belum ada data transaksi</h3>
-                <p class="text-gray-400">Silakan lakukan penjualan di aplikasi HP.</p>
+            <div class="text-center py-20 bg-white rounded-xl border-2 border-dashed border-gray-200">
+                <div class="text-6xl mb-4 grayscale opacity-50">🧾</div>
+                <h3 class="text-lg font-bold text-gray-500">Belum ada transaksi</h3>
+                <p class="text-gray-400 text-sm">Data penjualan dari Android akan muncul di sini.</p>
             </div>
             @endforelse
 
