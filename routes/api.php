@@ -11,6 +11,7 @@ use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\TableController;
+use App\Http\Controllers\SettingController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -53,3 +54,7 @@ Route::post('/expenses', [ExpenseController::class, 'store']);
 Route::get('/cash-flows', [CashFlowController::class, 'index']); 
 Route::post('/cash-flows', [CashFlowController::class, 'store']); 
 Route::post('/reservations', [ReservationController::class, 'store']);
+
+// --- SETTINGS TOKO ---
+Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index']);
+Route::post('/settings', [App\Http\Controllers\SettingController::class, 'update']);
