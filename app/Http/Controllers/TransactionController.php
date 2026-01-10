@@ -241,22 +241,22 @@ class TransactionController extends Controller
         $transaction = Transaction::find($id);
         if (!$transaction) return response()->json(['message' => 'Not found'], 404);
 
-        // [LOGIKA BARU: Cek Pembayaran]
-        if ($transaction->pay_amount >= $transaction->total_amount) {
-            // SKENARIO 1: SUDAH LUNAS
-            // Langsung ubah status jadi 'Selesai' agar masuk tab History/Selesai
+        // [FIX: Konversi ke Float agar perbandingan angka akurat]
+        $pay = (float) $transaction->pay_amount;
+        $total = (float) $transaction->total_amount;
+
+        // Cek Lunas dengan toleransi selisih koma 0.01
+        if ($pay >= ($total - 0.01)) {
+            // SKENARIO 1: LUNAS -> Status 'Selesai' (Hijau) & Kosongkan Meja
             $transaction->status = 'Selesai';
             
-            // Otomatis Kosongkan Meja
             $tableInfo = $transaction->table_number;
             if (!empty($tableInfo) && preg_match('/(\d+)/', $tableInfo, $matches)) {
                 $cleanNumber = (int)$matches[0];
                 DB::table('tables')->where('number', $cleanNumber)->update(['is_occupied' => 0]);
             }
         } else {
-            // SKENARIO 2: BELUM LUNAS
-            // Ubah jadi 'Served' (Sudah disajikan, tapi belum bayar lunas)
-            // Ini akan kita filter di Android agar masuk tab "Belum Bayar" saja
+            // SKENARIO 2: BELUM LUNAS -> Status 'Served' (Ungu)
             $transaction->status = 'Served';
         }
 
@@ -264,7 +264,8 @@ class TransactionController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Status pesanan diperbarui.'
+            'message' => 'Status pesanan diperbarui.',
+            'new_status' => $transaction->status 
         ]);
     }
 
