@@ -12,6 +12,7 @@ use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\Api\AnalysisController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -60,3 +61,6 @@ Route::post('/reservations', [ReservationController::class, 'store']);
 // --- SETTINGS TOKO ---
 Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index']);
 Route::post('/settings', [App\Http\Controllers\SettingController::class, 'update']);
+
+// --- ANALYSIS ---
+Route::get('/analysis/menu-performance', [AnalysisController::class, 'getMenuAnalysis']);

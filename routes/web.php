@@ -18,3 +18,6 @@ Route::get('/cash-flows', [CashFlowController::class, 'webIndex'])->name('cash_f
 Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
 Route::get('/history', [TransactionController::class, 'webIndex'])->name('transactions.history');
 Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
+Route::get('/report/menu-analysis', function () {
+    return view('analysis.menu_performance');
+});
