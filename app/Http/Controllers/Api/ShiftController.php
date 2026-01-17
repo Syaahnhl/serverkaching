@@ -91,4 +91,59 @@ class ShiftController extends Controller
             return response()->json(['status' => 'closed', 'data' => null]);
         }
     }
+
+    // [BARU] Method Khusus untuk Sinkronisasi Laporan dari Android
+    public function uploadReport(Request $request)
+    {
+        // 1. Validasi
+        $request->validate([
+            'app_uuid' => 'required',
+            'cashier_name' => 'required',
+            'actual_cash' => 'required|numeric',
+        ]);
+
+        try {
+            // 2. Cek apakah data dengan UUID ini sudah ada? (Biar gak dobel)
+            $existingShift = Shift::where('app_uuid', $request->app_uuid)->first();
+
+            if ($existingShift) {
+                return response()->json(['message' => 'Data sudah ada'], 200);
+            }
+
+            // 3. Simpan Laporan Baru
+            $shift = Shift::create([
+                'app_uuid' => $request->app_uuid,
+                'cashier_name' => $request->cashier_name,
+                
+                // Android kirim 'date', kita simpan sebagai waktu tutup
+                'end_time' => $request->date, 
+                'start_time' => $request->date, // (Opsional) Disamakan dulu jika tidak ada data start
+                
+                'start_cash' => $request->capital_in,
+                'end_cash' => $request->actual_cash,
+                
+                'total_cash_sales' => $request->cash_sales,
+                'total_expense' => $request->total_expense,
+                'cash_drop' => $request->cash_drop,
+                
+                'expected_cash' => $request->expected_cash,
+                'difference' => ($request->actual_cash - $request->expected_cash),
+                
+                'status' => 'closed', // Langsung closed karena ini laporan
+                'payment_details' => $request->payment_breakdown // JSON Rincian
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Laporan tersimpan di server',
+                'data' => $shift
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

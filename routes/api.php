@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/shift/open', [ShiftController::class, 'openShift']);
 Route::post('/shift/close', [ShiftController::class, 'closeShift']);
+Route::post('/shift/upload-report', [ShiftController::class, 'uploadReport']);
 
 // --- TRANSACTIONS ---
 // GET: Android mengambil data riwayat (JSON) -> pakai apiSync
