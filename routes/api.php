@@ -22,6 +22,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/shift/open', [ShiftController::class, 'openShift']);
 Route::post('/shift/close', [ShiftController::class, 'closeShift']);
 Route::post('/shift/upload-report', [ShiftController::class, 'uploadReport']);
+Route::get('/shift/history', [ShiftController::class, 'getHistory']);
 
 // --- TRANSACTIONS ---
 // GET: Android mengambil data riwayat (JSON) -> pakai apiSync

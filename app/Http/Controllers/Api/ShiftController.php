@@ -146,4 +146,18 @@ class ShiftController extends Controller
             ], 500);
         }
     }
+
+    public function getHistory()
+    {
+        // Ambil 30 shift terakhir yang sudah closed, urutkan dari yang terbaru
+        $shifts = Shift::where('status', 'closed')
+                    ->orderBy('created_at', 'desc')
+                    ->limit(30)
+                    ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $shifts
+        ]);
+    }
 }
