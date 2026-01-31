@@ -144,18 +144,28 @@ class TransactionController extends Controller
 
                 // 2. SIMPAN HEADER TRANSAKSI
                 $trxId = DB::table('transactions')->insertGetId([
-                    'app_uuid' => $request->app_uuid,
-                    'total_amount' => $request->total_amount,
-                    'pay_amount' => $request->pay_amount,
-                    'payment_method' => $request->payment_method,
-                    'customer_name' => $request->input('customer_name', 'Pelanggan'),
-                    'cashier_name' => $request->input('cashier_name', 'Kasir HP'),
-                    'table_number' => $request->input('table_number'),
-                    'status' => $trxStatus,
-                    'created_at_device' => Carbon::parse($request->created_at_device),
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                'app_uuid' => $request->app_uuid,
+                'total_amount' => $request->total_amount,
+                'pay_amount' => $request->pay_amount,
+                'payment_method' => $request->payment_method,
+                'customer_name' => $request->input('customer_name', 'Pelanggan'),
+                'cashier_name' => $request->input('cashier_name', 'Kasir HP'),
+                'table_number' => $request->input('table_number'),
+                'status' => $trxStatus,
+                'created_at_device' => Carbon::parse($request->created_at_device),
+                'created_at' => now(),
+                'updated_at' => now(),
+
+                // [BARU] Simpan ID Reservasi
+                'reservation_id' => $request->input('reservation_id', 0) 
                 ]);
+
+                // [BARU] UPDATE STATUS RESERVASI JADI 'SELESAI' (Opsional tapi Bagus)
+                if ($request->has('reservation_id') && $request->reservation_id != 0) {
+                    DB::table('reservations')
+                        ->where('id', $request->reservation_id)
+                        ->update(['status' => 'Selesai']); // Atau 'Datang'
+                }
 
                 // 3. SIMPAN ITEM & POTONG STOK
                 foreach ($request->items as $item) {

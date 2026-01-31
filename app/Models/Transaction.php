@@ -9,8 +9,19 @@ class Transaction extends Model
 {
     use HasFactory;
 
-    // Supaya bisa diisi semua kolomnya
-    protected $guarded = [];
+    // [UPDATE] Definisikan kolom yang boleh diisi, termasuk 'reservation_id'
+    protected $fillable = [
+        'app_uuid',
+        'customer_name',
+        'total_amount',
+        'pay_amount',
+        'payment_method',
+        'status',
+        'table_number',
+        'created_at_device',
+        'cashier_name',
+        'reservation_id' // <--- WAJIB DITAMBAHKAN
+    ];
 
     // Relasi: Satu Transaksi punya banyak Item Belanjaan
     public function items()
