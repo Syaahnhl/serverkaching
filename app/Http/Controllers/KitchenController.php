@@ -7,22 +7,43 @@ use Illuminate\Support\Facades\DB;
 
 class KitchenController extends Controller
 {
-    // 1. AMBIL DAFTAR PESANAN YANG BELUM SELESAI (Pending)
+    // 1. AMBIL DAFTAR PESANAN DENGAN LOGIKA KUNCI ITEM LAMA
     public function index()
     {
-        // Ambil transaksi yang statusnya BUKAN 'done' (bisa pending atau cooking)
+        // Ambil transaksi yang statusnya BUKAN 'done'
         $transactions = DB::table('transactions')
             ->where('status', '!=', 'done') 
-            ->orderBy('created_at', 'asc') // Yang pesan duluan, muncul di atas
+            ->orderBy('created_at', 'asc') 
             ->get();
 
-        // Kita perlu melampirkan detail item (menu apa aja) ke setiap transaksi
+        // Kita map (loop) setiap transaksi untuk ambil item & cek status waktunya
         $data = $transactions->map(function ($trx) {
+            
+            // 1. Ambil semua item milik transaksi ini
             $items = DB::table('transaction_items')
                 ->where('transaction_id', $trx->id)
                 ->get();
+
+            // 2. CARI WAKTU TERTUA (TERBARU) DI BATCH INI
+            // Kita cari 'created_at' yang paling besar (paling baru)
+            $latestItemTime = $items->max('created_at');
+
+            // 3. BANDINGKAN SETIAP ITEM DENGAN WAKTU TERBARU
+            // Kita tambahkan field baru bernama 'view_mode' ke dalam item
+            $processedItems = $items->map(function ($item) use ($latestItemTime) {
+                
+                // Jika waktu item LEBIH KECIL dari waktu terbaru = ITEM LAMA (Locked)
+                if ($item->created_at < $latestItemTime) {
+                    $item->view_mode = 'locked'; // Tandai sebagai view-only
+                } else {
+                    $item->view_mode = 'active'; // Tandai sebagai item baru (bisa diklik)
+                }
+                
+                return $item;
+            });
             
-            $trx->items = $items; // Tempelkan item ke transaksi
+            // Tempelkan item yang sudah diberi tanda ke transaksi
+            $trx->items = $processedItems; 
             return $trx;
         });
 
@@ -31,7 +52,6 @@ class KitchenController extends Controller
             'data' => $data
         ], 200);
     }
-
     // 2. TANDAI PESANAN SELESAI (Masakan Jadi)
     public function markAsDone($id)
     {

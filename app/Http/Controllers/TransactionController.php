@@ -40,17 +40,70 @@ class TransactionController extends Controller
     public function store(Request $request)
     {
         try {
-            // [FIX 1: ANTI DUPLIKAT - WAJIB ADA]
+            // [FIX 1: LOGIKA UPDATE PINTAR - SEKARANG MENDUKUNG TAMBAH PESANAN]
             // Cek apakah UUID ini sudah masuk sebelumnya?
-            // Jika ya, return sukses (anggap sudah tersimpan) agar Android tidak kirim ulang.
             $existing = Transaction::where('app_uuid', $request->app_uuid)->first();
+
             if ($existing) {
+                // JIKA UUID SUDAH ADA (UPDATE PESANAN / TAMBAH ITEM)
+
+                DB::transaction(function () use ($existing, $request) {
+                    
+                    // [FIX] Tentukan status baru. 
+                    // Agar pesanan muncul lagi di KDS, status harus 'Proses' atau 'Belum Lunas'.
+                    $newStatus = $request->input('status');
+                    
+                    // Fallback jika Android lupa kirim status
+                    if (!$newStatus) {
+                        $newStatus = ($request->pay_amount >= $request->total_amount) ? 'Proses' : 'Belum Lunas';
+                    }
+
+                    // 1. Update Header Transaksi (Termasuk STATUS)
+                    $existing->update([
+                        'total_amount' => $request->total_amount,
+                        'pay_amount' => $request->pay_amount,
+                        'status' => $newStatus, // <--- INI WAJIB ADA
+                        'payment_method' => $request->payment_method, 
+                        'updated_at' => now()
+                    ]);
+
+                    // 2. Ambil daftar menu yang SUDAH ADA di database untuk transaksi ini
+                    // Tujuannya agar kita tidak memasukkan item yang sama dua kali (Double Input)
+                    foreach ($request->items as $item) {
+                        
+                        // [LANGSUNG INSERT TANPA SYARAT]
+                        // Item ini akan masuk dengan status default 'Proses' (dari struktur tabel database)
+                        DB::table('transaction_items')->insert([
+                            'transaction_id' => $existing->id,
+                            'menu_name' => $item['name'], 
+                            'qty' => $item['qty'],
+                            'price' => $item['price'],
+                            'note' => $item['note'] ?? null,
+                            'created_at' => now(), 
+                            'updated_at' => now(),
+                            // 'status' => 'Proses' // Otomatis 'Proses' dari default database
+                        ]);
+
+                        // Update Stok Otomatis
+                        $menu = DB::table('menus')->where('name', $item['name'])->first();
+                        if ($menu && $menu->stock != -1) {
+                            DB::table('menus')->where('id', $menu->id)->decrement('stock', $item['qty']);
+                        }
+                    
+                    }
+                });
+
+                // Return Sukses Update
                 return response()->json([
                     'status' => 'success',
-                    'message' => 'Data duplikat terdeteksi (Aman).',
+                    'message' => 'Transaksi berhasil diperbarui (Item tambahan disimpan).',
                     'server_id' => $existing->id
                 ], 200);
             }
+
+            // =========================================================================
+            // JIKA UUID BELUM ADA -> LANJUT KE PROSES PEMBUATAN TRANSAKSI BARU (NORMAL)
+            // =========================================================================
 
             // 1. Validasi Input
             $validator = Validator::make($request->all(), [
@@ -62,7 +115,6 @@ class TransactionController extends Controller
                 
                 // [FIX 2: ANTI HANTU - WAJIB ADA]
                 // 'min:1' memastikan array tidak boleh kosong.
-                // Jika Android kirim header tapi itemnya 0, server akan MENOLAK.
                 'items' => 'required|array|min:1', 
                 
                 'items.*.name' => 'required|string',
@@ -138,7 +190,7 @@ class TransactionController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Transaksi Berhasil!',
+                'message' => 'Transaksi Baru Berhasil!',
                 'server_id' => $id
             ], 201);
 
@@ -241,7 +293,17 @@ class TransactionController extends Controller
         $transaction = Transaction::find($id);
         if (!$transaction) return response()->json(['message' => 'Not found'], 404);
 
-        // [FIX: Konversi ke Float agar perbandingan angka akurat]
+        // [FIX UTAMA] Update status SEMUA ITEM di transaksi ini jadi 'Served'
+        // Kita juga update 'updated_at' agar sistem tahu data ini baru saja berubah
+        DB::table('transaction_items')
+            ->where('transaction_id', $id)
+            ->update([
+                'status' => 'Served',
+                'updated_at' => now() 
+            ]);
+
+        // [LOGIKA STATUS TRANSAKSI]
+        // Konversi ke Float agar perbandingan angka akurat
         $pay = (float) $transaction->pay_amount;
         $total = (float) $transaction->total_amount;
 
@@ -250,6 +312,7 @@ class TransactionController extends Controller
             // SKENARIO 1: LUNAS -> Status 'Selesai' (Hijau) & Kosongkan Meja
             $transaction->status = 'Selesai';
             
+            // Kosongkan Meja (Update status is_occupied jadi 0)
             $tableInfo = $transaction->table_number;
             if (!empty($tableInfo) && preg_match('/(\d+)/', $tableInfo, $matches)) {
                 $cleanNumber = (int)$matches[0];
@@ -257,6 +320,7 @@ class TransactionController extends Controller
             }
         } else {
             // SKENARIO 2: BELUM LUNAS -> Status 'Served' (Ungu)
+            // Pesanan sudah diantar tapi belum bayar lunas
             $transaction->status = 'Served';
         }
 
@@ -264,7 +328,7 @@ class TransactionController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Status pesanan diperbarui.',
+            'message' => 'Status pesanan diperbarui (Item ditandai Served).',
             'new_status' => $transaction->status 
         ]);
     }
