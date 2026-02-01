@@ -303,7 +303,7 @@ class TransactionController extends Controller
         $transaction = Transaction::find($id);
         if (!$transaction) return response()->json(['message' => 'Not found'], 404);
 
-        // [FIX UTAMA] Update status SEMUA ITEM di transaksi ini jadi 'Served'
+        // 1. Update status SEMUA ITEM di transaksi ini jadi 'Served'
         // Kita juga update 'updated_at' agar sistem tahu data ini baru saja berubah
         DB::table('transaction_items')
             ->where('transaction_id', $id)
@@ -312,33 +312,24 @@ class TransactionController extends Controller
                 'updated_at' => now() 
             ]);
 
-        // [LOGIKA STATUS TRANSAKSI]
-        // Konversi ke Float agar perbandingan angka akurat
-        $pay = (float) $transaction->pay_amount;
-        $total = (float) $transaction->total_amount;
+        // [PERBAIKAN LOGIKA: HAPUS AUTO-CLOSE]
+        // DULU: Cek Lunas -> Kalau Lunas langsung 'Selesai' & Kosongkan Meja.
+        // SEKARANG: Selalu set 'Served'. Jangan pernah set 'Selesai' otomatis di sini.
+        // Meja hanya boleh kosong kalau Kasir klik tombol 'Selesaikan & Kosongkan' (API complete).
 
-        // Cek Lunas dengan toleransi selisih koma 0.01
-        if ($pay >= ($total - 0.01)) {
-            // SKENARIO 1: LUNAS -> Status 'Selesai' (Hijau) & Kosongkan Meja
-            $transaction->status = 'Selesai';
-            
-            // Kosongkan Meja (Update status is_occupied jadi 0)
-            $tableInfo = $transaction->table_number;
-            if (!empty($tableInfo) && preg_match('/(\d+)/', $tableInfo, $matches)) {
-                $cleanNumber = (int)$matches[0];
-                DB::table('tables')->where('number', $cleanNumber)->update(['is_occupied' => 0]);
-            }
-        } else {
-            // SKENARIO 2: BELUM LUNAS -> Status 'Served' (Ungu)
-            // Pesanan sudah diantar tapi belum bayar lunas
-            $transaction->status = 'Served';
-        }
+        $transaction->status = 'Served';
+        
+        // --- BAGIAN INI SUDAH DIHAPUS ---
+        // $pay = (float) $transaction->pay_amount;
+        // $total = (float) $transaction->total_amount;
+        // if ($pay >= ($total - 0.01)) { ... auto kosongkan meja ... }
+        // --------------------------------
 
         $transaction->save();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Status pesanan diperbarui (Item ditandai Served).',
+            'message' => 'Status pesanan diperbarui menjadi Served (Meja tetap terisi).',
             'new_status' => $transaction->status 
         ]);
     }
