@@ -45,12 +45,13 @@ class TransactionController extends Controller
             $existing = Transaction::where('app_uuid', $request->app_uuid)->first();
 
             if ($existing) {
-                // JIKA UUID SUDAH ADA (UPDATE PESANAN / TAMBAH ITEM)
+                // ====================================================
+                // SKENARIO A: UPDATE PESANAN / TAMBAH ITEM (ADD ON)
+                // ====================================================
 
                 DB::transaction(function () use ($existing, $request) {
                     
-                    // [FIX] Tentukan status baru. 
-                    // Agar pesanan muncul lagi di KDS, status harus 'Proses' atau 'Belum Lunas'.
+                    // Tentukan status baru agar KDS melihat ini sebagai order aktif lagi
                     $newStatus = $request->input('status');
                     
                     // Fallback jika Android lupa kirim status
@@ -58,51 +59,50 @@ class TransactionController extends Controller
                         $newStatus = ($request->pay_amount >= $request->total_amount) ? 'Proses' : 'Belum Lunas';
                     }
 
-                    // 1. Update Header Transaksi (Termasuk STATUS)
+                    // 1. Update Header Transaksi (Total Harga & Status berubah)
                     $existing->update([
                         'total_amount' => $request->total_amount,
                         'pay_amount' => $request->pay_amount,
-                        'status' => $newStatus, // <--- INI WAJIB ADA
+                        'status' => $newStatus, 
                         'payment_method' => $request->payment_method, 
                         'updated_at' => now()
                     ]);
 
-                    // 2. Ambil daftar menu yang SUDAH ADA di database untuk transaksi ini
-                    // Tujuannya agar kita tidak memasukkan item yang sama dua kali (Double Input)
-                    foreach ($request->items as $item) {
-                        
-                        // [LANGSUNG INSERT TANPA SYARAT]
-                        // Item ini akan masuk dengan status default 'Proses' (dari struktur tabel database)
-                        DB::table('transaction_items')->insert([
-                            'transaction_id' => $existing->id,
-                            'menu_name' => $item['name'], 
-                            'qty' => $item['qty'],
-                            'price' => $item['price'],
-                            'note' => $item['note'] ?? null,
-                            'created_at' => now(), 
-                            'updated_at' => now(),
-                            // 'status' => 'Proses' // Otomatis 'Proses' dari default database
-                        ]);
+                    // 2. Masukkan Item Tambahan
+                    // Android hanya mengirim item yang BARU ditambahkan, jadi kita aman langsung Insert.
+                    if ($request->has('items')) {
+                        foreach ($request->items as $item) {
+                            
+                            // Insert Item Baru
+                            DB::table('transaction_items')->insert([
+                                'transaction_id' => $existing->id,
+                                'menu_name' => $item['name'], 
+                                'qty' => $item['qty'],
+                                'price' => $item['price'],
+                                'note' => $item['note'] ?? null,
+                                'created_at' => now(), 
+                                'updated_at' => now(),
+                                'status' => 'Proses' // [PENTING] SAYA AKTIFKAN BARIS INI AGAR KDS BUNYI
+                            ]);
 
-                        // Update Stok Otomatis
-                        $menu = DB::table('menus')->where('name', $item['name'])->first();
-                        if ($menu && $menu->stock != -1) {
-                            DB::table('menus')->where('id', $menu->id)->decrement('stock', $item['qty']);
+                            // Update Stok Otomatis
+                            $menu = DB::table('menus')->where('name', $item['name'])->first();
+                            if ($menu && $menu->stock != -1) {
+                                DB::table('menus')->where('id', $menu->id)->decrement('stock', $item['qty']);
+                            }
                         }
-                    
                     }
                 });
 
-                // Return Sukses Update
                 return response()->json([
                     'status' => 'success',
-                    'message' => 'Transaksi berhasil diperbarui (Item tambahan disimpan).',
-                    'server_id' => $existing->id
+                    'message' => 'Pesanan tambahan berhasil disimpan',
+                    'data' => $existing
                 ], 200);
             }
 
             // =========================================================================
-            // JIKA UUID BELUM ADA -> LANJUT KE PROSES PEMBUATAN TRANSAKSI BARU (NORMAL)
+            // SKENARIO B: TRANSAKSI BARU (NORMAL)
             // =========================================================================
 
             // 1. Validasi Input
@@ -112,11 +112,7 @@ class TransactionController extends Controller
                 'pay_amount' => 'required|numeric',
                 'payment_method' => 'required|string',
                 'created_at_device' => 'required|date',
-                
-                // [FIX 2: ANTI HANTU - WAJIB ADA]
-                // 'min:1' memastikan array tidak boleh kosong.
                 'items' => 'required|array|min:1', 
-                
                 'items.*.name' => 'required|string',
                 'items.*.qty' => 'required|integer',
                 'items.*.price' => 'required|numeric',
@@ -128,13 +124,13 @@ class TransactionController extends Controller
             if ($validator->fails()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Validasi Gagal: Item kosong atau data tidak lengkap.',
+                    'message' => 'Validasi Gagal.',
                     'errors' => $validator->errors()
                 ], 422);
             }
 
             // Gunakan DB Transaction agar data aman
-            $id = DB::transaction(function () use ($request) {
+            $newTrx = DB::transaction(function () use ($request) {
                 
                 // Tentukan Status Default
                 $trxStatus = 'Proses'; 
@@ -143,42 +139,40 @@ class TransactionController extends Controller
                 }
 
                 // 2. SIMPAN HEADER TRANSAKSI
-                $trxId = DB::table('transactions')->insertGetId([
-                'app_uuid' => $request->app_uuid,
-                'total_amount' => $request->total_amount,
-                'pay_amount' => $request->pay_amount,
-                'payment_method' => $request->payment_method,
-                'customer_name' => $request->input('customer_name', 'Pelanggan'),
-                'cashier_name' => $request->input('cashier_name', 'Kasir HP'),
-                'table_number' => $request->input('table_number'),
-                'status' => $trxStatus,
-                'created_at_device' => Carbon::parse($request->created_at_device),
-                'created_at' => now(),
-                'updated_at' => now(),
-
-                // [BARU] Simpan ID Reservasi
-                'reservation_id' => $request->input('reservation_id', 0) 
+                $trx = Transaction::create([
+                    'app_uuid' => $request->app_uuid,
+                    'total_amount' => $request->total_amount,
+                    'pay_amount' => $request->pay_amount,
+                    'payment_method' => $request->payment_method,
+                    'customer_name' => $request->input('customer_name', 'Pelanggan'),
+                    'cashier_name' => $request->input('cashier_name', 'Kasir HP'),
+                    'table_number' => $request->input('table_number'),
+                    'status' => $trxStatus,
+                    'created_at_device' => Carbon::parse($request->created_at_device),
+                    'reservation_id' => $request->input('reservation_id', 0) 
                 ]);
 
-                // [BARU] UPDATE STATUS RESERVASI JADI 'SELESAI' (Opsional tapi Bagus)
+                // Update Status Reservasi (Jika ada)
                 if ($request->has('reservation_id') && $request->reservation_id != 0) {
                     DB::table('reservations')
                         ->where('id', $request->reservation_id)
-                        ->update(['status' => 'Selesai']); // Atau 'Datang'
+                        ->update(['status' => 'Selesai']);
                 }
 
                 // 3. SIMPAN ITEM & POTONG STOK
                 foreach ($request->items as $item) {
                     DB::table('transaction_items')->insert([
-                        'transaction_id' => $trxId,
+                        'transaction_id' => $trx->id,
                         'menu_name' => $item['name'], 
                         'qty' => $item['qty'],
                         'price' => $item['price'],
                         'note' => $item['note'] ?? null,
-                        'created_at' => now(), 'updated_at' => now()
+                        'created_at' => now(), 
+                        'updated_at' => now(),
+                        'status' => 'Proses' // Set explisit Proses
                     ]);
 
-                    // Update Stok Otomatis
+                    // Update Stok
                     $menu = DB::table('menus')->where('name', $item['name'])->first();
                     if ($menu && $menu->stock != -1) {
                         DB::table('menus')->where('id', $menu->id)->decrement('stock', $item['qty']);
@@ -195,13 +189,13 @@ class TransactionController extends Controller
                     }
                 }
 
-                return $trxId;
+                return $trx;
             });
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Transaksi Baru Berhasil!',
-                'server_id' => $id
+                'data' => $newTrx
             ], 201);
 
         } catch (\Throwable $e) {
