@@ -51,44 +51,49 @@ class TransactionController extends Controller
 
                 DB::transaction(function () use ($existing, $request) {
                     
-                    // Tentukan status baru agar KDS melihat ini sebagai order aktif lagi
-                    $newStatus = $request->input('status');
-                    
-                    // Fallback jika Android lupa kirim status
-                    if (!$newStatus) {
-                        $newStatus = ($request->pay_amount >= $request->total_amount) ? 'Proses' : 'Belum Lunas';
-                    }
-
-                    // 1. Update Header Transaksi (Total Harga & Status berubah)
+                    // 1. Update Header Transaksi
                     $existing->update([
                         'total_amount' => $request->total_amount,
                         'pay_amount' => $request->pay_amount,
-                        'status' => $newStatus, 
+                        // Jika Android tidak kirim status, pertahankan status lama
+                        'status' => $request->input('status', $existing->status), 
                         'payment_method' => $request->payment_method, 
                         'updated_at' => now()
                     ]);
 
-                    // 2. Masukkan Item Tambahan
-                    // Android hanya mengirim item yang BARU ditambahkan, jadi kita aman langsung Insert.
+                    // 2. Masukkan Item Tambahan (DENGAN PENGECEKAN DUPLIKAT)
                     if ($request->has('items')) {
                         foreach ($request->items as $item) {
                             
-                            // Insert Item Baru
-                            DB::table('transaction_items')->insert([
-                                'transaction_id' => $existing->id,
-                                'menu_name' => $item['name'], 
-                                'qty' => $item['qty'],
-                                'price' => $item['price'],
-                                'note' => $item['note'] ?? null,
-                                'created_at' => now(), 
-                                'updated_at' => now(),
-                                'status' => 'Proses' // [PENTING] SAYA AKTIFKAN BARIS INI AGAR KDS BUNYI
-                            ]);
+                            // [FIX ANTI-DUPLIKAT]
+                            // Cek apakah item ini sudah masuk dalam 1 menit terakhir?
+                            // Ini mencegah item ganda kalau sinyal jelek / tombol ditekan 2x.
+                            $isDuplicate = DB::table('transaction_items')
+                                ->where('transaction_id', $existing->id)
+                                ->where('menu_name', $item['name'])
+                                ->where('qty', $item['qty']) // Cek jumlah
+                                ->where('note', $item['note'] ?? null) // Cek catatan juga biar aman
+                                ->where('created_at', '>=', Carbon::now()->subSeconds(2)) // <--- UBAH INI JADI 2 DETIK
+                                ->exists();
 
-                            // Update Stok Otomatis
-                            $menu = DB::table('menus')->where('name', $item['name'])->first();
-                            if ($menu && $menu->stock != -1) {
-                                DB::table('menus')->where('id', $menu->id)->decrement('stock', $item['qty']);
+                            if (!$isDuplicate) {
+                                // Insert Item Baru
+                                DB::table('transaction_items')->insert([
+                                    'transaction_id' => $existing->id,
+                                    'menu_name' => $item['name'], 
+                                    'qty' => $item['qty'],
+                                    'price' => $item['price'],
+                                    'note' => $item['note'] ?? null,
+                                    'created_at' => now(), 
+                                    'updated_at' => now(),
+                                    'status' => 'Proses' 
+                                ]);
+
+                                // Update Stok
+                                $menu = DB::table('menus')->where('name', $item['name'])->first();
+                                if ($menu && $menu->stock != -1) {
+                                    DB::table('menus')->where('id', $menu->id)->decrement('stock', $item['qty']);
+                                }
                             }
                         }
                     }
@@ -96,7 +101,7 @@ class TransactionController extends Controller
 
                 return response()->json([
                     'status' => 'success',
-                    'message' => 'Pesanan tambahan berhasil disimpan',
+                    'message' => 'Data berhasil diupdate (Duplikat dicegah)',
                     'data' => $existing
                 ], 200);
             }

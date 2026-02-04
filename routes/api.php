@@ -13,6 +13,9 @@ use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\Api\AnalysisController;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -64,3 +67,18 @@ Route::post('/settings', [App\Http\Controllers\SettingController::class, 'update
 
 // --- ANALYSIS ---
 Route::get('/analysis/menu-performance', [AnalysisController::class, 'getMenuAnalysis']);
+
+Route::get('/fix-kds', function() {
+    // Paksa semua item hari ini jadi 'Served' agar KDS bersih
+    DB::table('transaction_items')
+        ->whereDate('created_at', Carbon::today())
+        ->update(['status' => 'Served']);
+        
+    // Paksa semua transaksi hari ini jadi 'Served'
+    DB::table('transactions')
+        ->whereDate('created_at', Carbon::today())
+        ->where('status', 'Proses')
+        ->update(['status' => 'Served']);
+        
+    return "KDS Berhasil Dibersihkan! Silakan mulai order baru.";
+});
