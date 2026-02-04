@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class TableController extends Controller
 {
@@ -16,12 +17,13 @@ class TableController extends Controller
         // [UPDATE PERBAIKAN DI SINI] 
         // Tambahkan 'Selesai' dan 'Served' agar status ini dianggap meja KOSONG.
         $activeTrx = DB::table('transactions')
+            ->whereDate('created_at', Carbon::today()) // <--- INI PERBAIKANNYA
             ->whereNotIn('status', [
                 'done', 
                 'Batal', 
                 'Cancelled', 
-                'Selesai',  // <--- INI KUNCINYA!
-                'Served'    // Tambahkan juga ini jika KDS sudah menyajikan
+                'Selesai', 
+                'Served' 
             ])
             ->whereNotNull('table_number')
             ->select('id', 'table_number') 
