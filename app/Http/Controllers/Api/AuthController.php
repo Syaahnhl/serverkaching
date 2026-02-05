@@ -21,11 +21,11 @@ class AuthController extends Controller
 
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
             $user = Auth::user();
-            
-            // Cek apakah akun sudah verifikasi OTP? (Opsional, nyalakan nanti)
-            // if ($user->otp != null) {
-            //     return response()->json(['status' => 'error', 'message' => 'Akun belum verifikasi OTP'], 403);
-            // }
+
+            // [BARU] Cek apakah Toko sudah disetting?
+            // Kita anggap toko "sudah setup" jika ada data di tabel settings
+            // Pastikan Anda sudah punya Model Setting (App\Models\Setting)
+            $hasOutlet = \App\Models\Setting::whereNotNull('store_name')->exists();
 
             return response()->json([
                 'status' => 'success',
@@ -35,6 +35,7 @@ class AuthController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'role' => $user->role ?? 'cashier',
+                    'has_outlet' => $hasOutlet // <--- INI KUNCINYA
                 ]
             ], 200);
         } else {
