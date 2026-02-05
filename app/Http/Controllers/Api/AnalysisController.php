@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth; // [WAJIB] Tambah ini
 
 class AnalysisController extends Controller
 {
@@ -13,13 +13,20 @@ class AnalysisController extends Controller
         // 1. Ambil Input Tanggal (Default: Hari Ini)
         $startDate = $request->input('start_date', date('Y-m-d'));
         $endDate = $request->input('end_date', date('Y-m-d'));
+        
+        // [SaaS] Ambil User ID
+        $userId = Auth::id();
 
-        // 2. Query Data Mentah
+        // 2. Query Data Mentah (Update SaaS)
         // Kita perlu JOIN ke tabel MENUS untuk mengambil cost_price (Modal)
-        // Asumsi: Nama menu di transaction_items sama dengan di tabel menus
         $rawStats = DB::table('transaction_items as ti')
             ->join('transactions as t', 'ti.transaction_id', '=', 't.id')
-            ->join('menus as m', 'ti.menu_name', '=', 'm.name') 
+            // [FIX] Join Menu spesifik punya User ini
+            // (Mencegah salah ambil modal dari "Nasi Goreng" milik toko sebelah)
+            ->join('menus as m', function($join) use ($userId) {
+                $join->on('ti.menu_name', '=', 'm.name')
+                     ->where('m.user_id', '=', $userId);
+            }) 
             ->select(
                 'm.name',
                 'm.price as current_selling_price',
@@ -27,7 +34,8 @@ class AnalysisController extends Controller
                 DB::raw('SUM(ti.qty) as total_qty'),
                 DB::raw('COUNT(ti.id) as popularity') // Frekuensi muncul di struk
             )
-            // Filter berdasarkan tanggal transaksi di DEVICE (bukan created_at server)
+            // [FIX] Filter hanya transaksi milik toko ini
+            ->where('t.user_id', $userId)
             ->whereBetween('t.created_at_device', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('t.status', '!=', 'Batal') // Abaikan transaksi batal
             ->groupBy('m.name', 'm.price', 'm.cost_price')

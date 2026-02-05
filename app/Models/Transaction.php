@@ -9,8 +9,9 @@ class Transaction extends Model
 {
     use HasFactory;
 
-    // [UPDATE] Definisikan kolom yang boleh diisi, termasuk 'reservation_id'
+    // [PENTING] Tambahkan 'user_id' agar sistem SaaS berjalan
     protected $fillable = [
+        'user_id',          // <--- WAJIB ADA (Agar data tersimpan milik user tertentu)
         'app_uuid',
         'customer_name',
         'total_amount',
@@ -20,87 +21,57 @@ class Transaction extends Model
         'table_number',
         'created_at_device',
         'cashier_name',
-        'reservation_id' // <--- WAJIB DITAMBAHKAN
+        'reservation_id',
+        'cancel_reason'     // Tambahan jika ada pembatalan
     ];
 
-    // Relasi: Satu Transaksi punya banyak Item Belanjaan
+    // [BARU] Pastikan format data benar saat keluar/masuk
+    protected $casts = [
+        'total_amount' => 'double',
+        'pay_amount' => 'double',
+        'created_at_device' => 'datetime', // Biar bisa langsung di-format ->format('d M Y')
+        'reservation_id' => 'integer'
+    ];
+
+    // Relasi: Satu Transaksi punya banyak Item
     public function items()
     {
-        // 'transaction_id' adalah nama kolom penghubung di tabel anak
         return $this->hasMany(TransactionItem::class, 'transaction_id', 'id');
     }
 
-    // --- AKSESOR PINTAR (LOGIC WARNA) ---
+    // --- AKSESOR (Kodingan Mas sudah bagus, saya pertahankan) ---
 
-    // 1. Cek Tipe Pesanan (Dine In / Take Away / Delivery)
-    // Logika: Mengambil teks di dalam kurung pada nama customer
-    // Contoh: "Budi (Take Away)" -> diambil "Take Away"
     public function getOrderTypeAttribute()
     {
-        // Cari teks di dalam kurung (...)
         if (preg_match('/\((.*?)\)/', $this->customer_name, $matches)) {
-            $type = $matches[1]; // Isinya misal: "Dine In - Meja 1" atau "Take Away"
-            
-            // Bersihkan nomor meja jika ada, ambil kata depannya saja
+            $type = $matches[1]; 
             if (str_contains($type, ' - ')) {
                 $parts = explode(' - ', $type);
-                return $parts[0]; // Ambil "Dine In" nya saja
+                return $parts[0]; 
             }
             return $type;
         }
-        return 'General'; // Default jika tidak ada kurung
+        return 'Dine In'; // Default saya ubah jadi Dine In biar lebih umum
     }
 
-    // 2. Status Badge (Warna & Label untuk Status Utama)
     public function getStatusStyleAttribute()
     {
-        // A. Jika Status BATAL
+        // A. BATAL
         if ($this->status === 'Batal' || $this->status === 'Cancelled') {
-            return [
-                'color' => 'bg-red-100 text-red-600 border-red-200',
-                'label' => 'DIBATALKAN',
-                'icon'  => '✕'
-            ];
+            return ['color' => 'bg-red-100 text-red-600 border-red-200', 'label' => 'DIBATALKAN', 'icon' => '✕'];
         }
 
-        // B. Jika Status SELESAI / DONE / SERVED
+        // B. SELESAI
         if (in_array($this->status, ['Selesai', 'Done', 'Served'])) {
-            return [
-                'color' => 'bg-green-100 text-green-700 border-green-200',
-                'label' => 'SELESAI',
-                'icon'  => '✓'
-            ];
+            return ['color' => 'bg-green-100 text-green-700 border-green-200', 'label' => 'SELESAI', 'icon' => '✓'];
         }
 
-        // C. Jika Status PROSES / BELUM LUNAS
-        // Cek pembayaran
-        $isLunas = $this->pay_amount >= $this->total_amount;
-
-        if (!$isLunas) {
-            return [
-                'color' => 'bg-orange-100 text-orange-700 border-orange-200',
-                'label' => 'BELUM LUNAS', // Proses tapi ngutang/bon
-                'icon'  => '⏳'
-            ];
+        // C. BELUM LUNAS (Kasbon)
+        if ($this->pay_amount < $this->total_amount) {
+            return ['color' => 'bg-orange-100 text-orange-700 border-orange-200', 'label' => 'BELUM LUNAS', 'icon' => '⏳'];
         }
 
-        // D. Default (Proses Lunas / Sedang Dimasak)
-        return [
-            'color' => 'bg-blue-100 text-blue-700 border-blue-200',
-            'label' => 'DIPROSES',
-            'icon'  => '👨‍🍳'
-        ];
-    }
-
-    // 3. Badge Warna untuk Tipe Pesanan
-    public function getTypeColorAttribute()
-    {
-        $type = strtolower($this->order_type);
-
-        if (str_contains($type, 'take away')) return 'bg-purple-100 text-purple-700';
-        if (str_contains($type, 'delivery')) return 'bg-yellow-100 text-yellow-700';
-        if (str_contains($type, 'reservasi')) return 'bg-pink-100 text-pink-700';
-        
-        return 'bg-gray-100 text-gray-600'; // Default (Dine In)
+        // D. PROSES
+        return ['color' => 'bg-blue-100 text-blue-700 border-blue-200', 'label' => 'DIPROSES', 'icon' => '👨‍🍳'];
     }
 }

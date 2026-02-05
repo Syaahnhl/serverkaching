@@ -2,24 +2,23 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
-// --- GROUP 1: Controller di dalam folder "App/Http/Controllers/Api" ---
-use App\Http\Controllers\Api\AuthController;       
-use App\Http\Controllers\Api\ShiftController;
-use App\Http\Controllers\Api\AnalysisController;
-
-// --- GROUP 2: Controller di dalam folder "App/Http/Controllers" (Luar) ---
-use App\Http\Controllers\TransactionController;
-use App\Http\Controllers\MenuController;
-use App\Http\Controllers\KitchenController; 
-use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\CashFlowController;
-use App\Http\Controllers\ReservationController;
-use App\Http\Controllers\TableController;
-use App\Http\Controllers\SettingController;
-
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+
+// ==============================================================================
+//  IMPORT CONTROLLER (SEMUA SUDAH PINDAH KE FOLDER API)
+// ==============================================================================
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ShiftController;
+use App\Http\Controllers\Api\AnalysisController;
+use App\Http\Controllers\Api\TransactionController; // [FIX] Tambah \Api
+use App\Http\Controllers\Api\MenuController;        // [FIX] Tambah \Api
+use App\Http\Controllers\Api\KitchenController;     // [FIX] Tambah \Api
+use App\Http\Controllers\Api\ExpenseController;     // [FIX] Tambah \Api
+use App\Http\Controllers\Api\CashFlowController;    // [FIX] Tambah \Api
+use App\Http\Controllers\Api\ReservationController; // [FIX] Tambah \Api
+use App\Http\Controllers\Api\TableController;       // [FIX] Tambah \Api
+use App\Http\Controllers\Api\SettingController;     // [FIX] Tambah \Api
 
 /*
 |--------------------------------------------------------------------------
@@ -30,7 +29,7 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 
-// Debugging Tool (Boleh public atau private, terserah Mas)
+// Debugging Tool (Reset Status Harian)
 Route::get('/fix-kds', function() {
     DB::table('transaction_items')
         ->whereDate('created_at', Carbon::today())
@@ -44,12 +43,11 @@ Route::get('/fix-kds', function() {
     return "KDS Berhasil Dibersihkan! Silakan mulai order baru.";
 });
 
-
 /*
 |--------------------------------------------------------------------------
 | 2. PRIVATE ROUTES (Harus Login / Punya Token)
 |--------------------------------------------------------------------------
-| Semua route di dalam grup ini baru bisa membaca auth()->id()
+| Semua route di sini otomatis membaca data User yang sedang login (SaaS)
 */
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -58,7 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
-    // --- SETTINGS TOKO (PENTING: Harus di dalam sini!) ---
+    // --- SETTINGS TOKO ---
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'update']);
 
@@ -66,7 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/shift/open', [ShiftController::class, 'openShift']);
     Route::post('/shift/close', [ShiftController::class, 'closeShift']);
     Route::post('/shift/upload-report', [ShiftController::class, 'uploadReport']);
-    Route::get('/shift/history', [ShiftController::class, 'getHistory']);
+    Route::get('/shift/history', [ShiftController::class, 'getHistory']); // Pastikan nama fungsi di controller: getHistory
 
     // --- TRANSACTIONS ---
     Route::get('/transactions', [TransactionController::class, 'apiSync']); 
@@ -77,11 +75,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- MENUS ---
     Route::get('/menus', [MenuController::class, 'index']);
     Route::post('/menus', [MenuController::class, 'store']);
-    Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']);
+    Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']); // Pastikan nama fungsi: updateStock
+    Route::delete('/menus/{id}', [MenuController::class, 'destroy']); // [TAMBAHAN] Biar bisa hapus menu
 
-    // --- KITCHEN ---
-    Route::get('/kitchen/orders', [KitchenController::class, 'index']);
-    Route::post('/kitchen/orders/{id}/done', [KitchenController::class, 'markAsDone']);
+    // --- KITCHEN (KDS) ---
+    // Note: Pastikan fungsi 'getKitchenOrders' ada di TransactionController atau KitchenController.
+    // Sesuai update terakhir, kita pakai TransactionController untuk logic KDS biar simpel.
+    Route::get('/kitchen/orders', [TransactionController::class, 'getKitchenOrders']); 
+    Route::post('/kitchen/orders/{id}/done', [TransactionController::class, 'markAsServed']);
 
     // --- TABLES ---
     Route::get('/tables', [TableController::class, 'index']);

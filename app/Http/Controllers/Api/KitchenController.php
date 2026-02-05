@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api; // [FIX] Namespace
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth; // [FIX] Tambah Auth
 use Carbon\Carbon;
 
 class KitchenController extends Controller
@@ -11,9 +12,12 @@ class KitchenController extends Controller
     // 1. AMBIL DAFTAR PESANAN (VERSI SMART FILTER)
     public function index()
     {
-        // 1. Ambil Transaksi Hari Ini yang Belum Beres
+        $userId = Auth::id(); // [SaaS] Ambil ID User
+
+        // 1. Ambil Transaksi Hari Ini yang Belum Beres (Milik Toko Ini)
         $transactions = DB::table('transactions')
-            ->whereDate('created_at', Carbon::today()) 
+            ->where('user_id', $userId) // [SaaS] Filter User
+            ->whereDate('created_at_device', Carbon::today()) // Gunakan waktu device
             ->whereNotIn('status', ['done', 'Selesai', 'Served', 'Batal', 'Cancelled']) 
             ->orderBy('created_at', 'asc') 
             ->get();
@@ -49,16 +53,23 @@ class KitchenController extends Controller
             return $trx->has_active_items; // Hanya loloskan yang masih punya item aktif
         })->values();
 
-        return response()->json(['status' => 'success', 'data' => $filteredData], 200);
+        return response()->json([
+            'status' => 'success', 
+            'data' => $filteredData
+        ], 200);
     }
 
     // 2. TANDAI PESANAN SELESAI (KDS Button)
     public function markAsDone($id)
     {
+        // [SaaS] Pastikan update transaksi milik sendiri
         return DB::transaction(function () use ($id) {
-            // Update Header jadi 'Served'
+            $userId = Auth::id();
+
+            // Update Header jadi 'Served' HANYA jika milik user ini
             $affected = DB::table('transactions')
                 ->where('id', $id)
+                ->where('user_id', $userId) // [SaaS] Kunci Keamanan
                 ->update([
                     'status' => 'Served',
                     'updated_at' => now()
@@ -73,7 +84,7 @@ class KitchenController extends Controller
                 return response()->json(['status' => 'success'], 200);
             }
 
-            return response()->json(['message' => 'Gagal update'], 404);
+            return response()->json(['message' => 'Pesanan tidak ditemukan atau bukan milik Anda'], 404);
         });
     }
 }
