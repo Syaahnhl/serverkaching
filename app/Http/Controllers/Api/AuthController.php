@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
-use Illuminate\Support\Facades\Hash;      // [BARU] Untuk encrypt password
-use Illuminate\Support\Facades\Validator; // [BARU] Untuk validasi input
+use App\Models\Setting; // [PENTING] Import Model Setting
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
-    // --- 1. LOGIN (KODE LAMA KAMU) ---
+    // --- 1. LOGIN ---
     public function login(Request $request)
     {
         $request->validate([
@@ -20,25 +21,29 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
-            $user = Auth::user();
+                $user = Auth::user();
 
-            // [BARU] Cek apakah Toko sudah disetting?
-            // Kita anggap toko "sudah setup" jika ada data di tabel settings
-            // Pastikan Anda sudah punya Model Setting (App\Models\Setting)
-            $hasOutlet = \App\Models\Setting::whereNotNull('store_name')->exists();
+                // 1. [BARU] Generate Token
+                $token = $user->createToken('auth_token')->plainTextToken;
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Login berhasil',
-                'data' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role ?? 'cashier',
-                    'has_outlet' => $hasOutlet // <--- INI KUNCINYA
-                ]
-            ], 200);
-        } else {
+                // [UPDATE LOGIC SAAS]
+                $hasOutlet = Setting::where('user_id', $user->id)
+                                ->whereNotNull('store_name')
+                                ->exists();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Login berhasil',
+                    'data' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $user->role ?? 'cashier',
+                        'has_outlet' => $hasOutlet,
+                        'token' => $token // [BARU] Kirim token ini
+                    ]
+                ], 200);
+            } else {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Email atau Password salah'
@@ -46,7 +51,7 @@ class AuthController extends Controller
         }
     }
 
-    // --- 2. REGISTER (KODE BARU) ---
+    // --- 2. REGISTER ---
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -71,7 +76,7 @@ class AuthController extends Controller
             'otp' => $otpCode,
         ]);
 
-        // Kirim OTP via JSON dulu (Testing)
+        // Kirim OTP via JSON (Debug)
         return response()->json([
             'status' => 'success',
             'message' => 'Registrasi berhasil. Silakan cek OTP.',
@@ -80,7 +85,7 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // --- 3. VERIFIKASI OTP (KODE BARU) ---
+    // --- 3. VERIFIKASI OTP ---
     public function verifyOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -115,6 +120,7 @@ class AuthController extends Controller
     // --- 4. LOGOUT ---
     public function logout(Request $request)
     {
+        // Jika pakai Sanctum: $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out']);
     }
 }

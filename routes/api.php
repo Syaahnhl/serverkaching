@@ -21,59 +21,16 @@ use App\Http\Controllers\SettingController;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
-
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
-
-// --- AUTH (REGISTER, LOGIN, OTP) ---
+/*
+|--------------------------------------------------------------------------
+| 1. PUBLIC ROUTES (Bisa diakses tanpa Login)
+|--------------------------------------------------------------------------
+*/
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 
-// --- SHIFT ---
-Route::post('/shift/open', [ShiftController::class, 'openShift']);
-Route::post('/shift/close', [ShiftController::class, 'closeShift']);
-Route::post('/shift/upload-report', [ShiftController::class, 'uploadReport']);
-Route::get('/shift/history', [ShiftController::class, 'getHistory']);
-
-// --- TRANSACTIONS ---
-Route::get('/transactions', [TransactionController::class, 'apiSync']); 
-Route::post('/transactions', [TransactionController::class, 'store']);
-Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
-Route::post('/transactions/{id}/complete', [TransactionController::class, 'complete']);
-
-// --- MENUS ---
-Route::get('/menus', [MenuController::class, 'index']);
-Route::post('/menus', [MenuController::class, 'store']);
-Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']);
-
-// --- KITCHEN ---
-Route::get('/kitchen/orders', [KitchenController::class, 'index']);
-Route::post('/kitchen/orders/{id}/done', [KitchenController::class, 'markAsDone']);
-
-// --- TABLES ---
-Route::get('/tables', [TableController::class, 'index']);
-
-// --- EXPENSES ---
-Route::get('/expenses', [ExpenseController::class, 'index']); 
-Route::post('/expenses', [ExpenseController::class, 'store']);
-
-// --- CASH FLOW & RESERVATION ---
-Route::get('/cash-flows', [CashFlowController::class, 'index']); 
-Route::post('/cash-flows', [CashFlowController::class, 'store']); 
-Route::post('/reservations', [ReservationController::class, 'store']);
-
-// --- SETTINGS TOKO ---
-// [PERBAIKAN] Hapus "App\Http\Controllers\" karena sudah di-import di atas
-Route::get('/settings', [SettingController::class, 'index']);
-Route::post('/settings', [SettingController::class, 'update']);
-
-// --- ANALYSIS ---
-Route::get('/analysis/menu-performance', [AnalysisController::class, 'getMenuAnalysis']);
-
-
-// --- DEBUGGING TOOL (Pembersih KDS) ---
+// Debugging Tool (Boleh public atau private, terserah Mas)
 Route::get('/fix-kds', function() {
     DB::table('transaction_items')
         ->whereDate('created_at', Carbon::today())
@@ -85,4 +42,63 @@ Route::get('/fix-kds', function() {
         ->update(['status' => 'Served']);
         
     return "KDS Berhasil Dibersihkan! Silakan mulai order baru.";
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| 2. PRIVATE ROUTES (Harus Login / Punya Token)
+|--------------------------------------------------------------------------
+| Semua route di dalam grup ini baru bisa membaca auth()->id()
+*/
+Route::middleware('auth:sanctum')->group(function () {
+
+    // Cek User Login
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
+
+    // --- SETTINGS TOKO (PENTING: Harus di dalam sini!) ---
+    Route::get('/settings', [SettingController::class, 'index']);
+    Route::post('/settings', [SettingController::class, 'update']);
+
+    // --- SHIFT ---
+    Route::post('/shift/open', [ShiftController::class, 'openShift']);
+    Route::post('/shift/close', [ShiftController::class, 'closeShift']);
+    Route::post('/shift/upload-report', [ShiftController::class, 'uploadReport']);
+    Route::get('/shift/history', [ShiftController::class, 'getHistory']);
+
+    // --- TRANSACTIONS ---
+    Route::get('/transactions', [TransactionController::class, 'apiSync']); 
+    Route::post('/transactions', [TransactionController::class, 'store']);
+    Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
+    Route::post('/transactions/{id}/complete', [TransactionController::class, 'complete']);
+
+    // --- MENUS ---
+    Route::get('/menus', [MenuController::class, 'index']);
+    Route::post('/menus', [MenuController::class, 'store']);
+    Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']);
+
+    // --- KITCHEN ---
+    Route::get('/kitchen/orders', [KitchenController::class, 'index']);
+    Route::post('/kitchen/orders/{id}/done', [KitchenController::class, 'markAsDone']);
+
+    // --- TABLES ---
+    Route::get('/tables', [TableController::class, 'index']);
+
+    // --- EXPENSES ---
+    Route::get('/expenses', [ExpenseController::class, 'index']); 
+    Route::post('/expenses', [ExpenseController::class, 'store']);
+
+    // --- CASH FLOW & RESERVATION ---
+    Route::get('/cash-flows', [CashFlowController::class, 'index']); 
+    Route::post('/cash-flows', [CashFlowController::class, 'store']); 
+    Route::post('/reservations', [ReservationController::class, 'store']);
+
+    // --- ANALYSIS ---
+    Route::get('/analysis/menu-performance', [AnalysisController::class, 'getMenuAnalysis']);
+    
+    // --- LOGOUT ---
+    Route::post('/logout', [AuthController::class, 'logout']);
+
 });

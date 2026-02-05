@@ -3,16 +3,19 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage; // Untuk upload logo
+use App\Models\Setting; // [PENTING] Gunakan Model Setting yang baru dibuat
+use Illuminate\Support\Facades\Storage; 
 
 class SettingController extends Controller
 {
-    // API GET: Ambil Data Setting
+    // API GET: Ambil Data Setting Milik User Login
     public function index()
     {
-        // Selalu ambil baris pertama (ID 1)
-        $setting = DB::table('settings')->first();
+        // 1. Ambil ID User yang sedang login
+        $userId = auth()->id(); 
+
+        // 2. Cari setting berdasarkan user_id tersebut
+        $setting = Setting::where('user_id', $userId)->first();
         
         return response()->json([
             'status' => 'success',
@@ -20,10 +23,18 @@ class SettingController extends Controller
         ]);
     }
 
-    // API POST: Update Setting & Logo
+    // API POST: Update Setting & Logo (Multi-User Ready)
     public function update(Request $request)
     {
-        // 1. Siapkan Data Text
+        // 1. Ambil ID User yang sedang login
+        $userId = auth()->id();
+
+        // [SAFETY CHECK] Pastikan user login (Token valid)
+        if (!$userId) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        // 2. Siapkan Data Text
         $data = [
             'store_name' => $request->store_name,
             'store_address' => $request->store_address,
@@ -32,30 +43,30 @@ class SettingController extends Controller
             'receipt_website' => $request->receipt_website,
             'tax_rate' => $request->tax_rate ?? '0',
             'service_charge' => $request->service_charge ?? '0',
-            'updated_at' => now()
+            // 'updated_at' otomatis diurus oleh Eloquent
         ];
 
-        // 2. Handle Upload Logo (Jika ada file 'logo' dikirim)
+        // 3. Handle Upload Logo
         if ($request->hasFile('logo')) {
             $file = $request->file('logo');
-            // Simpan di folder public/logos
             $path = $file->store('logos', 'public'); 
-            
-            // Buat URL lengkap agar bisa diakses Android
-            // Contoh: http://192.168.1.5:8000/storage/logos/abc.jpg
-            $logoUrl = asset('storage/' . $path);
-            
-            $data['logo_url'] = $logoUrl;
+            $data['logo_url'] = asset('storage/' . $path);
         }
 
-        // 3. Update Database (ID 1)
-        DB::table('settings')->where('id', 1)->update($data);
+        // 4. [LOGIC BARU] Update atau Buat Baru (UpdateOrCreate)
+        // Laravel akan mencari setting punya user ini ($userId).
+        // Kalau ketemu -> DIUPDATE.
+        // Kalau tidak ketemu (user baru) -> DIBUAT BARU.
+        $setting = Setting::updateOrCreate(
+            ['user_id' => $userId], // Kunci pencarian
+            $data                   // Data yang disimpan
+        );
 
-        // 4. Kembalikan Data Terbaru
+        // 5. Kembalikan Data Terbaru
         return response()->json([
             'status' => 'success',
             'message' => 'Pengaturan berhasil disimpan!',
-            'data' => DB::table('settings')->first()
+            'data' => $setting
         ]);
     }
 }
