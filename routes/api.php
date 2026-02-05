@@ -2,17 +2,22 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\AuthController;
+
+// --- GROUP 1: Controller di dalam folder "App/Http/Controllers/Api" ---
+use App\Http\Controllers\Api\AuthController;       
+use App\Http\Controllers\Api\ShiftController;
+use App\Http\Controllers\Api\AnalysisController;
+
+// --- GROUP 2: Controller di dalam folder "App/Http/Controllers" (Luar) ---
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\KitchenController; 
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\ReservationController;
-use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\SettingController;
-use App\Http\Controllers\Api\AnalysisController;
+
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -21,23 +26,21 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// --- AUTH & SHIFT ---
+// --- AUTH (REGISTER, LOGIN, OTP) ---
+Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+
+// --- SHIFT ---
 Route::post('/shift/open', [ShiftController::class, 'openShift']);
 Route::post('/shift/close', [ShiftController::class, 'closeShift']);
 Route::post('/shift/upload-report', [ShiftController::class, 'uploadReport']);
 Route::get('/shift/history', [ShiftController::class, 'getHistory']);
 
 // --- TRANSACTIONS ---
-// GET: Android mengambil data riwayat (JSON) -> pakai apiSync
 Route::get('/transactions', [TransactionController::class, 'apiSync']); 
-
-// POST: Android mengirim pesanan baru
 Route::post('/transactions', [TransactionController::class, 'store']);
-
-// POST: Android membatalkan pesanan (Untuk fix sinkronisasi meja)
 Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
-// [BARU - TAMBAHKAN INI] Route untuk Selesaikan Transaksi (Complete)
 Route::post('/transactions/{id}/complete', [TransactionController::class, 'complete']);
 
 // --- MENUS ---
@@ -50,7 +53,7 @@ Route::get('/kitchen/orders', [KitchenController::class, 'index']);
 Route::post('/kitchen/orders/{id}/done', [KitchenController::class, 'markAsDone']);
 
 // --- TABLES ---
-Route::get('/tables', [TableController::class, 'index']); // Ambil data meja
+Route::get('/tables', [TableController::class, 'index']);
 
 // --- EXPENSES ---
 Route::get('/expenses', [ExpenseController::class, 'index']); 
@@ -62,19 +65,20 @@ Route::post('/cash-flows', [CashFlowController::class, 'store']);
 Route::post('/reservations', [ReservationController::class, 'store']);
 
 // --- SETTINGS TOKO ---
-Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index']);
-Route::post('/settings', [App\Http\Controllers\SettingController::class, 'update']);
+// [PERBAIKAN] Hapus "App\Http\Controllers\" karena sudah di-import di atas
+Route::get('/settings', [SettingController::class, 'index']);
+Route::post('/settings', [SettingController::class, 'update']);
 
 // --- ANALYSIS ---
 Route::get('/analysis/menu-performance', [AnalysisController::class, 'getMenuAnalysis']);
 
+
+// --- DEBUGGING TOOL (Pembersih KDS) ---
 Route::get('/fix-kds', function() {
-    // Paksa semua item hari ini jadi 'Served' agar KDS bersih
     DB::table('transaction_items')
         ->whereDate('created_at', Carbon::today())
         ->update(['status' => 'Served']);
         
-    // Paksa semua transaksi hari ini jadi 'Served'
     DB::table('transactions')
         ->whereDate('created_at', Carbon::today())
         ->where('status', 'Proses')
