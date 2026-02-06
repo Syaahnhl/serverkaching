@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers\Api; // [FIX] Namespace
 
+use App\Http\Controllers\Controller; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth; // [FIX] Tambah Auth
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -17,11 +18,11 @@ class DashboardController extends Controller
         // 1. HITUNG OMSET & TRANSAKSI HARI INI (Milik User Ini)
         $today = Carbon::today();
         
-        $todayOmset = DB::table('transactions')
-                        ->where('user_id', $userId) // [SaaS]
-                        ->whereDate('created_at_device', $today) // Gunakan waktu device biar akurat
-                        ->where('status', '!=', 'Batal') 
-                        ->sum('total_amount') ?? 0;
+        $todayOmset = (int) DB::table('transactions')
+                ->where('user_id', $userId)
+                ->whereDate('created_at_device', $today)
+                ->where('status', '!=', 'Batal') 
+                ->sum('total_amount');
                         
         $todayCount = DB::table('transactions')
                         ->where('user_id', $userId) // [SaaS]

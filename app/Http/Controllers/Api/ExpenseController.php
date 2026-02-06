@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api; // [FIX] Namespace sudah benar
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Expense; // [FIX] Gunakan Model Expense
 use Illuminate\Support\Facades\Auth; // [FIX] Tambah Auth untuk SaaS

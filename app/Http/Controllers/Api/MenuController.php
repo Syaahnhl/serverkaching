@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api; // [FIX] Namespace benar
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Menu; // [FIX] Gunakan Model Menu
 use Illuminate\Support\Facades\Storage;

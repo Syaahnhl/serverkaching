@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api; // [FIX] Namespace
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Setting; // [FIX] Gunakan Model Setting
 use Illuminate\Support\Facades\Storage;

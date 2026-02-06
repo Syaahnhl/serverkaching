@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\CashFlowController;    // [FIX] Tambah \Api
 use App\Http\Controllers\Api\ReservationController; // [FIX] Tambah \Api
 use App\Http\Controllers\Api\TableController;       // [FIX] Tambah \Api
 use App\Http\Controllers\Api\SettingController;     // [FIX] Tambah \Api
+use App\Http\Controllers\Api\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -55,6 +56,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    // --- DASHBOARD ---
+    Route::get('/dashboard', [DashboardController::class, 'index']);
 
     // --- SETTINGS TOKO ---
     Route::get('/settings', [SettingController::class, 'index']);

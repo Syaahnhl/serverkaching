@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api; // [FIX] Namespace harus \Api
+namespace App\Http\Controllers; // [FIX] Namespace harus \Api
 
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;

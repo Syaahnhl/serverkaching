@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api; // [FIX] Namespace
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Reservation; // [FIX] Gunakan Model
 use Illuminate\Support\Facades\Validator;
