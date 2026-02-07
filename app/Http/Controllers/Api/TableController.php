@@ -72,7 +72,8 @@ class TableController extends Controller // [FIX] Otomatis baca Controller di fo
     public function store(Request $request)
     {
         $request->validate([
-            'number' => 'required|integer',
+            'number' => 'required|string', // Ubah jadi string biar fleksibel (misal "A1")
+            'area'   => 'nullable|string'  // Tambah kolom Area (Opsional)
         ]);
 
         $userId = Auth::id();
@@ -88,8 +89,9 @@ class TableController extends Controller // [FIX] Otomatis baca Controller di fo
 
         // Simpan Meja
         $table = Table::create([
-            'user_id' => $userId, // [SaaS]
+            'user_id' => $userId,
             'number' => $request->number,
+            'area' => $request->area ?? 'Main Area', // Default area
             'is_occupied' => false
         ]);
 

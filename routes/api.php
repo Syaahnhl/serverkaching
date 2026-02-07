@@ -90,6 +90,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- TABLES ---
     Route::get('/tables', [TableController::class, 'index']);
+    Route::post('/tables', [TableController::class, 'store']); // [BARU] Tambah Meja
+    Route::delete('/tables/{id}', [TableController::class, 'destroy']); // [BARU] Hapus Meja
 
     // --- EXPENSES ---
     Route::get('/expenses', [ExpenseController::class, 'index']); 
