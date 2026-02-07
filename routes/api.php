@@ -83,10 +83,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/menus/{id}', [MenuController::class, 'destroy']); // [TAMBAHAN] Biar bisa hapus menu
 
     // --- KITCHEN (KDS) ---
-    // Note: Pastikan fungsi 'getKitchenOrders' ada di TransactionController atau KitchenController.
-    // Sesuai update terakhir, kita pakai TransactionController untuk logic KDS biar simpel.
     Route::get('/kitchen/orders', [TransactionController::class, 'getKitchenOrders']); 
     Route::post('/kitchen/orders/{id}/done', [TransactionController::class, 'markAsServed']);
+    Route::post('/kitchen/items/{id}/status', [TransactionController::class, 'updateItemStatus']);
 
     // --- TABLES ---
     Route::get('/tables', [TableController::class, 'index']);

@@ -353,4 +353,37 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
             'data' => $transaction
         ]);
     }
+
+    public function updateItemStatus(Request $request, $itemId)
+    {
+        $userId = Auth::id(); // [SaaS]
+
+        // Validasi input status
+        $request->validate([
+            'status' => 'required|string|in:Proses,Cooking,Done,Served'
+        ]);
+
+        // Cari Item di database yang punya User ID ini
+        $item = DB::table('transaction_items')
+                    ->where('id', $itemId)
+                    ->where('user_id', $userId)
+                    ->first();
+
+        if (!$item) {
+            return response()->json(['message' => 'Item not found or access denied'], 404);
+        }
+
+        // Update Status
+        DB::table('transaction_items')
+            ->where('id', $itemId)
+            ->update([
+                'status' => $request->status,
+                'updated_at' => now()
+            ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Item status updated to ' . $request->status
+        ]);
+    }
 }
