@@ -31,10 +31,11 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
     // 2. API SYNC (HANYA MILIK SENDIRI)
     public function apiSync()
     {
-        $data = DB::table('transactions')
+        // BENAR: Gunakan Model Transaction agar bisa with('items')
+        $data = Transaction::with('items') 
                     ->where('user_id', Auth::id()) // [SaaS]
                     ->orderBy('created_at_device', 'desc')
-                    ->limit(500) // Limit biar gak overload
+                    ->limit(500)
                     ->get();
 
         return response()->json([
