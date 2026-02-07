@@ -10,8 +10,10 @@ class Table extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', // <--- WAJIB ADA
-        'number', 
+        'user_id',
+        'number',
+        'area',        // <--- WAJIB DITAMBAHKAN DI SINI
+        'status',      // Tambahkan juga ini (tadi ada di controller 'status' => 'Kosong')
         'is_occupied'
     ];
 }
