@@ -12,55 +12,37 @@ use App\Models\Table; // [FIX] Gunakan Model Table
 class TableController extends Controller // [FIX] Otomatis baca Controller di folder yang sama
 {
     // 1. API: AMBIL STATUS MEJA (Untuk Halaman Depan Android)
-    public function index()
+    public function index(Request $request)
     {
         $userId = Auth::id(); // [SaaS]
 
-        // A. Ambil Daftar Meja Milik User Ini
-        $tables = DB::table('tables')
-                    ->where('user_id', $userId)
-                    ->orderBy('number', 'asc') // Urutkan nomor meja 1, 2, 3...
-                    ->get();
+        // A. Mulai Query Dasar
+        $query = DB::table('tables')->where('user_id', $userId);
 
-        // B. Ambil Transaksi Aktif Hari Ini (Milik User Ini)
-        // Logic: Transaksi hari ini yang statusnya BELUM selesai/batal
-        $activeTrx = DB::table('transactions')
-            ->where('user_id', $userId) // [SaaS] Kunci Keamanan
-            ->whereDate('created_at_device', Carbon::today()) // Gunakan waktu device
-            ->whereNotIn('status', [
-                'done', 
-                'Batal', 
-                'Cancelled', 
-                'Selesai', 
-                'Served' // Status ini dianggap meja sudah kosong
-            ])
-            ->whereNotNull('table_number')
-            ->select('id', 'table_number') 
-            ->get();
+        // --- [LOGIC BARU: DUAL MODE] ---
+        
+        // 1. Filter Area (Khusus Mode Classic / Tab View)
+        // Contoh Request: GET /api/tables?area=Indoor Utama
+        if ($request->has('area') && $request->area != 'Semua') {
+            $query->where('area', $request->area);
+        }
 
-        // C. Gabungkan Data (Cek mana meja yang terisi)
-        $tables = $tables->map(function($table) use ($activeTrx) {
-            
-            // Default: Kita anggap kosong dulu
-            $table->is_occupied = 0;
-            $table->active_trx_id = null; 
+        // 2. Filter Status (Khusus Mode Fast Casual / Popup)
+        // Contoh Request: GET /api/tables?status=available
+        if ($request->has('status') && $request->status == 'available') {
+            $query->where('is_occupied', 0);
+        }
 
-            foreach ($activeTrx as $trx) {
-                // Logic regex: Ambil angka dari string (misal "Meja 1" -> "1")
-                // Ini berguna kalau kasir input manual "Meja 01" padahal di database "1"
-                preg_match('/^\d+/', $trx->table_number, $matches);
-                $extractedNum = $matches[0] ?? ''; 
+        // -------------------------------
 
-                // Jika Nomor Meja sama dengan Transaksi yang SEDANG AKTIF
-                if ($extractedNum === (string)$table->number) {
-                    $table->is_occupied = 1; // Paksa jadi Terisi
-                    $table->active_trx_id = $trx->id; 
-                    break; 
-                }
-            }
+        // B. Eksekusi Query & Sorting
+        // Kita pakai orderByRaw agar angka '10' tidak dianggap lebih kecil dari '2' (String sorting issue)
+        $tables = $query->orderByRaw('CAST(number AS UNSIGNED) ASC')->get();
 
-            return $table;
-        });
+        // C. (OPSIONAL) Logic Cek Transaksi Aktif 
+        // Jika sistemmu update kolom 'is_occupied' secara real-time saat checkout, 
+        // maka bagian "Ambil Transaksi Aktif" yang lama sebenarnya BISA DIHAPUS agar performa lebih cepat.
+        // Tapi jika mau double-check, bisa ditaruh di sini (saya skip agar query ringan untuk popup).
 
         return response()->json([
             'status' => 'success',

@@ -39,10 +39,12 @@ class SettingController extends Controller // [FIX] Otomatis baca Controller di 
     // API POST: Update Setting & Logo (Multi-User Ready)
     public function update(Request $request)
     {
-        // 1. Validasi Input
+        // 1. Validasi Input [UPDATED]
+        // store_name kita buat nullable agar bisa update parsial (misal cuma update mode)
         $validator = Validator::make($request->all(), [
-            'store_name' => 'required|string|max:100',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048' 
+            'store_name' => 'nullable|string|max:100', 
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'service_mode' => 'nullable|in:classic,fast_casual' // [BARU] Validasi Mode
         ]);
 
         if ($validator->fails()) {
@@ -51,18 +53,24 @@ class SettingController extends Controller // [FIX] Otomatis baca Controller di 
 
         $userId = Auth::id();
 
-        // 2. Siapkan Data Text
-        $data = [
-            'store_name' => $request->store_name,
-            'store_address' => $request->store_address,
-            'store_phone' => $request->store_phone,
-            'receipt_footer' => $request->receipt_footer,
-            'receipt_website' => $request->receipt_website,
-            'tax_rate' => $request->tax_rate ?? 0,
-            'service_charge' => $request->service_charge ?? 0,
-        ];
+        // 2. Siapkan Data Text [UPDATED]
+        // Kita pakai logika: "Update hanya yang dikirim saja"
+        $data = [];
 
-        // 3. Handle Upload Logo
+        // Cek satu per satu, kalau ada di request, baru masukkan ke array data
+        if ($request->has('store_name')) $data['store_name'] = $request->store_name;
+        if ($request->has('store_address')) $data['store_address'] = $request->store_address;
+        if ($request->has('store_phone')) $data['store_phone'] = $request->store_phone;
+        if ($request->has('receipt_footer')) $data['receipt_footer'] = $request->receipt_footer;
+        if ($request->has('receipt_website')) $data['receipt_website'] = $request->receipt_website;
+        if ($request->has('tax_rate')) $data['tax_rate'] = $request->tax_rate;
+        if ($request->has('service_charge')) $data['service_charge'] = $request->service_charge;
+        
+        // [BARU] Masukkan service_mode ke data update
+        if ($request->has('service_mode')) $data['service_mode'] = $request->service_mode;
+
+
+        // 3. Handle Upload Logo (Masih sama seperti kodemu, aman)
         if ($request->hasFile('logo')) {
             
             // A. Cek setting lama
@@ -70,15 +78,12 @@ class SettingController extends Controller // [FIX] Otomatis baca Controller di 
             
             // B. Hapus logo lama
             if ($oldSetting && $oldSetting->logo_url) {
-                // Hapus path storage/ dari string untuk dapat path relatif
                 $oldPath = str_replace(asset('storage/'), '', $oldSetting->logo_url);
-                // Cek lagi apakah path-nya bersih (tidak ada http)
                 if (str_contains($oldSetting->logo_url, 'http')) {
-                     // Parse URL untuk ambil path relatif jika disimpan full URL
-                     $parsed = parse_url($oldSetting->logo_url);
-                     $oldPath = ltrim($parsed['path'], '/storage/');
+                      $parsed = parse_url($oldSetting->logo_url);
+                      $oldPath = ltrim($parsed['path'] ?? '', '/storage/'); // Safety null check
                 } else {
-                     $oldPath = $oldSetting->logo_url;
+                      $oldPath = $oldSetting->logo_url;
                 }
                 
                 Storage::disk('public')->delete($oldPath);
@@ -105,7 +110,7 @@ class SettingController extends Controller // [FIX] Otomatis baca Controller di 
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Pengaturan berhasil disimpan!',
+            'message' => 'Pengaturan berhasil diperbarui!',
             'data' => $setting
         ]);
     }

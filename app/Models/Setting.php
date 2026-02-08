@@ -21,6 +21,7 @@ class Setting extends Model
         'tax_rate',
         'service_charge',
         'logo_url',
+        'service_mode',
     ];
 
     // [TAMBAHAN] Casting Tipe Data
