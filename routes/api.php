@@ -71,7 +71,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/shift/history', [ShiftController::class, 'getHistory']); // Pastikan nama fungsi di controller: getHistory
 
     // --- TRANSACTIONS ---
-    Route::get('/transactions', [TransactionController::class, 'apiSync']); 
+    Route::get('/transactions/sync', [TransactionController::class, 'apiSync']); 
+    Route::get('/transactions', [TransactionController::class, 'index']); 
     Route::post('/transactions', [TransactionController::class, 'store']);
     Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
     Route::post('/transactions/{id}/complete', [TransactionController::class, 'complete']);

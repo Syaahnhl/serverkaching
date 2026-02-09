@@ -31,11 +31,30 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
     // 2. API SYNC (HANYA MILIK SENDIRI)
     public function apiSync()
     {
-        // BENAR: Gunakan Model Transaction agar bisa with('items')
+        $userId = Auth::id();
+
+        // 1. Cek dulu, apakah Kasir ini punya Shift yang sedang OPEN?
+        $activeShift = \App\Models\Shift::where('user_id', $userId)
+                        ->where('status', 'open')
+                        ->first();
+
+        // 2. Jika TIDAK ADA shift buka (Toko Tutup / Belum Buka)
+        // Maka server jangan kasih data transaksi apapun.
+        // Ini bikin HP tetap bersih setelah tutup toko.
+        if (!$activeShift) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Toko sedang tutup, tidak ada data sinkronisasi.',
+                'total' => 0,
+                'data' => [] // Array kosong penting agar Android menghapus data lokal
+            ], 200);
+        }
+
+        // 3. Jika ADA shift buka, ambil transaksi HANYA sejak jam buka shift
         $data = Transaction::with('items') 
-                    ->where('user_id', Auth::id()) // [SaaS]
+                    ->where('user_id', $userId) // [SaaS]
+                    ->where('created_at_device', '>=', $activeShift->start_time) // [FILTER WAKTU]
                     ->orderBy('created_at_device', 'desc')
-                    ->limit(500)
                     ->get();
 
         return response()->json([

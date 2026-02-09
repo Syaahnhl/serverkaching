@@ -8,6 +8,7 @@ use App\Models\Shift;       // [FIX] Gunakan Model
 use App\Models\Transaction; // [FIX] Gunakan Model
 use Illuminate\Support\Facades\Auth; // [FIX] Tambah Auth
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class ShiftController extends Controller // [FIX] Otomatis baca Controller di folder yang sama
@@ -157,7 +158,7 @@ class ShiftController extends Controller // [FIX] Otomatis baca Controller di fo
                 'cashier_name' => $request->cashier_name,
                 
                 'end_time' => $request->date, 
-                'start_time' => $request->date, // (Opsional, disamakan dulu kalau data start hilang)
+                'start_time' => $request->date, 
                 
                 'start_cash' => $request->capital_in,
                 'end_cash' => $request->actual_cash,
@@ -170,16 +171,26 @@ class ShiftController extends Controller // [FIX] Otomatis baca Controller di fo
                 'difference' => ($request->actual_cash - $request->expected_cash),
                 
                 'status' => 'closed', 
-                'payment_details' => $request->payment_breakdown // JSON String dari Android
-            ]);
+                'payment_details' => is_array($request->payment_breakdown) ? json_encode($request->payment_breakdown) : $request->payment_breakdown
+            ]); // [FIX] Penutup fungsi create (kurung siku array + kurung biasa fungsi + titik koma)
+
+            // ========================================================
+            // [BARU] RESET SEMUA MEJA USER INI JADI KOSONG
+            // ========================================================
+            // Supaya saat sinkronisasi ulang, HP tidak menarik data "Occupied" lagi.
+            DB::table('tables')
+                ->where('user_id', $userId) 
+                ->update([
+                    'is_occupied' => 0 
+                ]);
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Laporan tersimpan di server',
+                'message' => 'Laporan tersimpan dan Meja berhasil di-reset',
                 'data' => $shift
             ], 201);
 
-        } catch (\Exception $e) {
+            } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error', 
                 'message' => $e->getMessage()

@@ -12,23 +12,42 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        // 0. Ambil ID User yang Login
         $userId = Auth::id();
 
-        // 1. HITUNG OMSET & TRANSAKSI HARI INI (Milik User Ini)
-        $today = Carbon::today();
-        
+        // [FIX UTAMA] Cek Shift Aktif
+        $activeShift = DB::table('shifts')
+            ->where('user_id', $userId)
+            ->where('status', 'open')
+            ->first();
+
+        // JIKA TIDAK ADA SHIFT BUKA (TUTUP TOKO) -> KIRIM 0 SEMUA
+        if (!$activeShift) {
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'today_omset' => 0,
+                    'today_count' => 0,
+                    'low_stock_menus' => [], // Boleh tetap kirim stok atau kosong
+                    'chart' => ['labels' => [], 'data' => []],
+                    'recent_transactions' => []
+                ]
+            ], 200);
+        }
+
+        // JIKA SHIFT BUKA -> Hitung Data SEJAK JAM BUKA SHIFT (Bukan sejak 00:00)
+        $startTime = $activeShift->start_time;
+
         $todayOmset = (int) DB::table('transactions')
-                ->where('user_id', $userId)
-                ->whereDate('created_at_device', $today)
-                ->where('status', '!=', 'Batal') 
-                ->sum('total_amount');
-                        
+            ->where('user_id', $userId)
+            ->where('created_at_device', '>=', $startTime) // [FIX] Filter Waktu Shift
+            ->where('status', '!=', 'Batal')
+            ->sum('total_amount');
+
         $todayCount = DB::table('transactions')
-                        ->where('user_id', $userId) // [SaaS]
-                        ->whereDate('created_at_device', $today)
-                        ->where('status', '!=', 'Batal')
-                        ->count();
+            ->where('user_id', $userId)
+            ->where('created_at_device', '>=', $startTime) // [FIX] Filter Waktu Shift
+            ->where('status', '!=', 'Batal')
+            ->count();
 
         // 2. CEK STOK MENIPIS (Milik User Ini)
         $lowStockMenus = DB::table('menus')
