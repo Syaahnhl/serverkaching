@@ -25,7 +25,9 @@ class KitchenController extends Controller
 
         $data = $transactions->map(function ($trx) {
             $items = DB::table('transaction_items')
-                ->where('transaction_id', $trx->id)
+                ->join('menus', 'transaction_items.menu_name', '=', 'menus.name') // Hubungkan lewat nama menu
+                ->where('transaction_items.transaction_id', $trx->id)
+                ->select('transaction_items.*', 'menus.category') // <--- INI KUNCINYA
                 ->get();
 
             $hasActiveItems = false;
