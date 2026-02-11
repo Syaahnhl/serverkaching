@@ -22,13 +22,14 @@ class Menu extends Model
         'has_variant',
         'description',
         'image_url',
-        'is_available'
+        'is_available',
+        'unit'
     ];
 
     protected $casts = [
         'price' => 'double',
         'cost_price' => 'double',
-        'stock' => 'integer',
+        'stock' => 'double',
         'has_variant' => 'boolean',
         'is_available' => 'boolean',
     ];

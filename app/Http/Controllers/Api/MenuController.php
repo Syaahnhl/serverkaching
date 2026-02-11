@@ -14,18 +14,17 @@ class MenuController extends Controller // [FIX] Otomatis baca Controller di fol
     // 1. FUNGSI UTAMA: Menampilkan Data (Hanya Punya User Login)
     public function index()
     {
-        // Ambil ID User
         $userId = Auth::id();
 
-        // [SaaS] Ambil menu milik user ini saja
         $menus = Menu::where('user_id', $userId)
                      ->where('is_available', 1)
                      ->orderBy('name', 'asc')
                      ->get();
         
-        // Transform URL Gambar (Biar muncul di Android)
+        // [FIX] Transformasi URL Gambar agar Android bisa load
         $menus->transform(function ($menu) {
             if ($menu->image_url) {
+                // Cek apakah sudah ada http/https (biar ga double)
                 if (!str_starts_with($menu->image_url, 'http')) {
                     $menu->image_url = asset('storage/' . $menu->image_url);
                 }
@@ -44,18 +43,19 @@ class MenuController extends Controller // [FIX] Otomatis baca Controller di fol
     {
         // 1. Validasi
         $validator = Validator::make($request->all(), [
-            'name' => 'required',
-            'category' => 'required',
+            'name' => 'required|string',
+            'category' => 'required|string',
+            'unit' => 'required|string', // [PENTING] Validasi Unit
             'price' => 'required|numeric',
             'cost_price' => 'required|numeric',
-            'stock' => 'required|numeric',
+            'stock' => 'required|numeric', // Bisa desimal (0.5)
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error', 
-                'message' => 'Data tidak lengkap',
+                'message' => 'Data tidak valid',
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -63,24 +63,27 @@ class MenuController extends Controller // [FIX] Otomatis baca Controller di fol
         // 2. Upload Gambar
         $imagePath = null;
         if ($request->hasFile('image')) {
+            // Simpan path relatif: "menus/namafile.jpg"
             $imagePath = $request->file('image')->store('menus', 'public');
         }
 
-        // 3. Simpan ke Database (SaaS)
+        // 3. Simpan ke Database
         $menu = Menu::create([
-            'user_id' => Auth::id(), // <--- KUNCI SAAS (Milik User Login)
+            'user_id' => Auth::id(),
             'name' => $request->name,
             'category' => $request->category,
             'price' => $request->price,
             'cost_price' => $request->cost_price,
             'stock' => $request->stock,
             'has_variant' => filter_var($request->has_variant, FILTER_VALIDATE_BOOLEAN),
+            'unit' => $request->unit, // [FIX] Simpan Unit
             'description' => $request->description,
-            'image_url' => $imagePath,
+            'image_url' => $imagePath, // Simpan path relatif di DB
             'is_available' => true,
         ]);
 
-        // Fix URL Gambar untuk respon
+        // [FIX] Ubah path menjadi Full URL khusus untuk Response JSON ini
+        // Agar Android langsung bisa menampilkan gambar tanpa refresh
         if ($menu->image_url) {
             $menu->image_url = asset('storage/' . $menu->image_url);
         }
@@ -117,7 +120,16 @@ class MenuController extends Controller // [FIX] Otomatis baca Controller di fol
     // 4. UPDATE STOK
     public function updateStock(Request $request, $id)
     {
-        // [SaaS] Cek kepemilikan
+        // [FIX] Tambahkan Validasi
+        $validator = Validator::make($request->all(), [
+            'stock' => 'required|numeric' // Wajib angka/desimal
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => 'Stok harus berupa angka'], 422);
+        }
+
+        // Cari menu milik user
         $menu = Menu::where('id', $id)
                     ->where('user_id', Auth::id())
                     ->first();
@@ -126,6 +138,7 @@ class MenuController extends Controller // [FIX] Otomatis baca Controller di fol
             return response()->json(['status' => 'error', 'message' => 'Menu tidak ditemukan'], 404);
         }
 
+        // Update
         $menu->update([
             'stock' => $request->stock
         ]);
@@ -133,7 +146,10 @@ class MenuController extends Controller // [FIX] Otomatis baca Controller di fol
         return response()->json([
             'status' => 'success',
             'message' => 'Stok berhasil diupdate',
-            'data' => ['id' => $menu->id, 'new_stock' => $menu->stock]
+            'data' => [
+                'id' => $menu->id, 
+                'new_stock' => (double)$menu->stock // Cast ke double biar aman
+            ]
         ], 200);
     }
 }
