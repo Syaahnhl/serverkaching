@@ -23,7 +23,8 @@ class Menu extends Model
         'description',
         'image_url',
         'is_available',
-        'unit'
+        'unit',
+        'is_kds',
     ];
 
     protected $casts = [
@@ -32,5 +33,6 @@ class Menu extends Model
         'stock' => 'double',
         'has_variant' => 'boolean',
         'is_available' => 'boolean',
+        'is_kds' => 'boolean',
     ];
 }

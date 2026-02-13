@@ -24,6 +24,8 @@ return new class extends Migration
             
             // Mapping: has_variant (Server) -> hasVariant (Android)
             $table->boolean('has_variant')->default(false); 
+
+            $table->boolean('is_kds')->default(true);
             
             $table->text('description')->nullable(); // Opsional
             $table->boolean('is_available')->default(true);

@@ -77,6 +77,7 @@ class MenuController extends Controller // [FIX] Otomatis baca Controller di fol
             'stock' => $request->stock,
             'has_variant' => filter_var($request->has_variant, FILTER_VALIDATE_BOOLEAN),
             'unit' => $request->unit, // [FIX] Simpan Unit
+            'is_kds' => filter_var($request->input('is_kds', true), FILTER_VALIDATE_BOOLEAN),
             'description' => $request->description,
             'image_url' => $imagePath, // Simpan path relatif di DB
             'is_available' => true,
