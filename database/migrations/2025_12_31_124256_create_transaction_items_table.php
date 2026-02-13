@@ -12,14 +12,13 @@ return new class extends Migration
             $table->id();
             
             // Link ke tabel transaksi utama
-            // (Cascade artinya: kalau transaksi induk dihapus, item ini ikut kehapus)
             $table->foreignId('transaction_id')->constrained('transactions')->onDelete('cascade');
 
             // Data Menu
-            $table->string('menu_name'); // Nama menu (disimpan teks biar aman kalau nama menu asli berubah)
-            $table->integer('qty');
-            $table->decimal('price', 15, 2); // Harga satuan saat transaksi terjadi
-            $table->string('note')->nullable(); // Catatan (Pedas, Tanpa Es, dll)
+            $table->string('menu_name'); 
+            $table->double('qty'); // <--- [UBAH INI] Gunakan double untuk menampung desimal
+            $table->decimal('price', 15, 2); 
+            $table->string('note')->nullable(); 
             
             $table->timestamps();
         });

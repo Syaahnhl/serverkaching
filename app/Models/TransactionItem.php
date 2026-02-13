@@ -11,10 +11,9 @@ class TransactionItem extends Model
 
     protected $table = 'transaction_items';
 
-    // [PENTING] Masukkan user_id disini juga
     protected $fillable = [
         'transaction_id',
-        'user_id',      // <--- WAJIB ADA (Untuk filter di Dapur/Laporan per item)
+        'user_id',      
         'menu_name',
         'qty',
         'price',
@@ -22,12 +21,12 @@ class TransactionItem extends Model
         'status'
     ];
 
+    // [UBAH INI] Pastikan qty di-cast sebagai double
     protected $casts = [
-        'qty' => 'integer',
+        'qty' => 'double', // <--- FIX: Sekarang Laravel akan mempertahankan angka desimal (0.5)
         'price' => 'double',
     ];
 
-    // Relasi Balik ke Transaksi
     public function transaction()
     {
         return $this->belongsTo(Transaction::class, 'transaction_id', 'id');

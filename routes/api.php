@@ -76,6 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/transactions', [TransactionController::class, 'store']);
     Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
     Route::post('/transactions/{id}/complete', [TransactionController::class, 'complete']);
+    Route::post('/transactions/{id}/refund-item', [TransactionController::class, 'refundItem']);
 
     // --- MENUS ---
     Route::get('/menus', [MenuController::class, 'index']);

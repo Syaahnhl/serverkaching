@@ -405,4 +405,92 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
             'message' => 'Item status updated to ' . $request->status
         ]);
     }
+
+    // 8. PARTIAL REFUND (REFUND PER ITEM)
+    public function refundItem(Request $request, $id)
+    {
+        $userId = Auth::id(); // [SaaS] Keamanan User
+
+        // 1. Validasi Input
+        $validator = Validator::make($request->all(), [
+            'item_id'   => 'required|integer',
+            'qty'       => 'required|numeric',
+            'menu_name' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($request, $userId, $id) {
+                
+                // [BARU] 1. Cari Item & Pastikan belum pernah direfund (Mencegah Kasir nakal nge-klik berkali-kali)
+                $item = DB::table('transaction_items')
+                    ->where('id', $request->item_id)
+                    ->where('transaction_id', $id) // ID struk dari URL
+                    ->where('user_id', $userId)
+                    ->where('status', '!=', 'Refund') 
+                    ->first();
+
+                if (!$item) {
+                    throw new \Exception("Item tidak ditemukan atau sudah pernah direfund.");
+                }
+
+                // 2. RESTORE STOCK (Kembalikan Stok)
+                $menu = DB::table('menus')
+                    ->where('name', $request->menu_name)
+                    ->where('user_id', $userId)
+                    ->first();
+
+                if ($menu && $menu->stock != -1) {
+                    DB::table('menus')
+                        ->where('id', $menu->id)
+                        ->increment('stock', $request->qty);
+                }
+
+                // [BARU] 3. HITUNG NOMINAL YANG DIKEMBALIKAN
+                $refundAmount = $item->price * $request->qty;
+
+                // [BARU] 4. UPDATE HEADER TRANSAKSI (Kurangi uang di struk utama agar laporan akurat)
+                DB::table('transactions')
+                    ->where('id', $id)
+                    ->where('user_id', $userId)
+                    ->decrement('total_amount', $refundAmount);
+                
+                DB::table('transactions')
+                    ->where('id', $id)
+                    ->where('user_id', $userId)
+                    ->decrement('pay_amount', $refundAmount);
+
+                // 5. UPDATE STATUS ITEM JADI 'REFUND'
+                DB::table('transaction_items')
+                    ->where('id', $request->item_id)
+                    ->update([
+                        'status' => 'Refund',
+                        'note'   => $request->input('reason', 'Refund via App'),
+                        'updated_at' => now()
+                    ]);
+                
+                // [BARU] 6. CEK JIKA SEMUA ITEM DI STRUK SUDAH DIREFUND
+                $remainingItems = DB::table('transaction_items')
+                    ->where('transaction_id', $id)
+                    ->where('status', '!=', 'Refund')
+                    ->count();
+                
+                // Jika sudah habis semua barangnya, otomatis batalkan struknya
+                if ($remainingItems == 0) {
+                    DB::table('transactions')->where('id', $id)->update(['status' => 'Batal']);
+                }
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Item berhasil direfund, stok & saldo laporan telah disesuaikan.'
+            ]);
+
+        } catch (\Throwable $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }
