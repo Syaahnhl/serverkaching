@@ -1,48 +1,31 @@
 <?php
 
-namespace App\Http\Controllers\Api; // [FIX] Namespace
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth; // [FIX] Tambah Auth
-use Carbon\Carbon;
-use App\Models\Table; // [FIX] Gunakan Model Table
+use Illuminate\Support\Facades\Auth;
+use App\Models\Table;
 
-class TableController extends Controller // [FIX] Otomatis baca Controller di folder yang sama
+class TableController extends Controller
 {
-    // 1. API: AMBIL STATUS MEJA (Untuk Halaman Depan Android)
+    // 1. AMBIL STATUS MEJA
     public function index(Request $request)
     {
-        $userId = Auth::id(); // [SaaS]
+        $userId = Auth::id();
+        $query = Table::where('user_id', $userId);
 
-        // A. Mulai Query Dasar
-        $query = DB::table('tables')->where('user_id', $userId);
-
-        // --- [LOGIC BARU: DUAL MODE] ---
-        
-        // 1. Filter Area (Khusus Mode Classic / Tab View)
-        // Contoh Request: GET /api/tables?area=Indoor Utama
-        if ($request->has('area') && $request->area != 'Semua') {
+        // [Penyempurnaan] Menggunakan filled() untuk cek key & value sekaligus
+        if ($request->filled('area') && $request->area != 'Semua') {
             $query->where('area', $request->area);
         }
 
-        // 2. Filter Status (Khusus Mode Fast Casual / Popup)
-        // Contoh Request: GET /api/tables?status=available
         if ($request->has('status') && $request->status == 'available') {
             $query->where('is_occupied', 0);
         }
 
-        // -------------------------------
-
-        // B. Eksekusi Query & Sorting
-        // Kita pakai orderByRaw agar angka '10' tidak dianggap lebih kecil dari '2' (String sorting issue)
+        // CAST agar urutan: 1, 2, 3... 10, 11 (bukan urutan abjad)
         $tables = $query->orderByRaw('CAST(number AS UNSIGNED) ASC')->get();
-
-        // C. (OPSIONAL) Logic Cek Transaksi Aktif 
-        // Jika sistemmu update kolom 'is_occupied' secara real-time saat checkout, 
-        // maka bagian "Ambil Transaksi Aktif" yang lama sebenarnya BISA DIHAPUS agar performa lebih cepat.
-        // Tapi jika mau double-check, bisa ditaruh di sini (saya skip agar query ringan untuk popup).
 
         return response()->json([
             'status' => 'success',
@@ -50,30 +33,29 @@ class TableController extends Controller // [FIX] Otomatis baca Controller di fo
         ], 200);
     }
 
-    // 2. API: TAMBAH MEJA BARU
+    // 2. TAMBAH MEJA BARU
     public function store(Request $request)
     {
         $request->validate([
-            'number' => 'required|string', // Ubah jadi string biar fleksibel (misal "A1")
-            'area'   => 'nullable|string'  // Tambah kolom Area (Opsional)
+            'number' => 'required|string|max:30',
+            'area'   => 'nullable|string'
         ]);
 
         $userId = Auth::id();
 
-        // Cek apakah nomor meja sudah ada di toko ini?
+        // Cek duplikasi nomor meja di toko yang sama
         $exists = Table::where('user_id', $userId)
                     ->where('number', $request->number)
                     ->exists();
 
         if ($exists) {
-            return response()->json(['status' => 'error', 'message' => 'Nomor meja ini sudah ada.'], 400);
+            return response()->json(['status' => 'error', 'message' => 'Nomor meja ini sudah digunakan.'], 400);
         }
 
-        // Simpan Meja
         $table = Table::create([
             'user_id' => $userId,
             'number' => $request->number,
-            'area' => $request->area ?? 'Main Area', // Default area
+            'area' => $request->area ?? 'Main Area',
             'is_occupied' => false
         ]);
 
@@ -81,33 +63,112 @@ class TableController extends Controller // [FIX] Otomatis baca Controller di fo
             'status' => 'success',
             'message' => 'Meja berhasil ditambahkan',
             'data' => $table
+        ], 201);
+    }
+
+    // 3. UPDATE MEJA (Nomor & Area)
+    public function update(Request $request, $id)
+    {
+        $userId = Auth::id();
+        $table = Table::where('id', $id)->where('user_id', $userId)->first();
+
+        if (!$table) return response()->json(['status' => 'error', 'message' => 'Meja tidak ditemukan'], 404);
+
+        $request->validate([
+            'number' => 'required|string|max:30',
+            'area' => 'required|string'
+        ]);
+
+        // Cek duplikasi dengan mengecualikan meja yang sedang diedit
+        $duplicate = Table::where('user_id', $userId)
+                        ->where('number', $request->number)
+                        ->where('id', '!=', $id)
+                        ->exists();
+
+        if ($duplicate) {
+            return response()->json(['status' => 'error', 'message' => 'Nomor meja sudah digunakan.'], 400);
+        }
+
+        $table->update([
+            'number' => $request->number,
+            'area' => $request->area
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Meja berhasil diperbarui',
+            'data' => $table
         ]);
     }
 
-    // 3. API: HAPUS MEJA
+    // 4. HAPUS MEJA
     public function destroy($id)
     {
-        // Cari meja milik user ini
-        $table = Table::where('id', $id)
-                    ->where('user_id', Auth::id()) // [SaaS]
-                    ->first();
+        $table = Table::where('id', $id)->where('user_id', Auth::id())->first();
+        
+        if (!$table) return response()->json(['status' => 'error', 'message' => 'Meja tidak ditemukan'], 404);
 
-        if ($table) {
-            $table->delete();
-            return response()->json(['status' => 'success', 'message' => 'Meja dihapus']);
-        }
+        // [FIX] KITA KOMENTARI/HAPUS BAGIAN INI BIAR BISA PAKSA HAPUS
+        // if ($table->is_occupied) {
+        //    return response()->json(['status' => 'error', 'message' => 'Meja sedang digunakan...'], 400);
+        // }
 
-        return response()->json(['status' => 'error', 'message' => 'Meja tidak ditemukan'], 404);
+        $table->delete();
+        return response()->json(['status' => 'success', 'message' => 'Meja berhasil dihapus']);
     }
 
-    // 4. (Opsional) API: SET STATUS MANUAL
+    // 5. UPDATE STATUS MEJA (Manual/Internal)
     public function updateStatus(Request $request, $id)
     {
-        DB::table('tables')
-            ->where('id', $id)
-            ->where('user_id', Auth::id()) // [SaaS]
-            ->update(['is_occupied' => $request->is_occupied]);
-            
-        return response()->json(['status' => 'success']);
+        $table = Table::where('id', $id)->where('user_id', Auth::id())->first();
+
+        if ($table) {
+            $table->update(['is_occupied' => $request->is_occupied]);
+            return response()->json(['status' => 'success']);
+        }
+        
+        return response()->json(['status' => 'error'], 404);
+    }
+
+    // [BARU] 6. HAPUS SATU AREA (Hapus semua meja di area ini)
+    public function deleteArea(Request $request)
+    {
+        $request->validate(['area' => 'required|string']);
+        $userId = Auth::id();
+
+        // Hapus semua meja yang punya nama area ini
+        $deleted = Table::where('user_id', $userId)
+                        ->where('area', $request->area)
+                        ->delete();
+
+        if ($deleted) {
+            return response()->json(['status' => 'success', 'message' => "Area '$request->area' dan $deleted meja didalamnya berhasil dihapus."]);
+        }
+
+        return response()->json(['status' => 'error', 'message' => 'Area tidak ditemukan'], 404);
+    }
+
+    public function renameArea(Request $request)
+    {
+        $request->validate([
+            'old_name' => 'required|string',
+            'new_name' => 'required|string|max:50'
+        ]);
+
+        $userId = Auth::id();
+
+        // Update semua meja yang punya area lama menjadi area baru
+        $affected = Table::where('user_id', $userId)
+                         ->where('area', $request->old_name)
+                         ->update(['area' => $request->new_name]);
+
+        if ($affected > 0) {
+            return response()->json([
+                'status' => 'success', 
+                'message' => "Berhasil mengubah area menjadi '$request->new_name'."
+            ]);
+        }
+
+        return response()->json(['status' => 'error', 'message' => 'Area tidak ditemukan'], 404);
     }
 }

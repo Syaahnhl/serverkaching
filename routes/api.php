@@ -93,6 +93,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tables', [TableController::class, 'index']);
     Route::post('/tables', [TableController::class, 'store']); // [BARU] Tambah Meja
     Route::delete('/tables/{id}', [TableController::class, 'destroy']); // [BARU] Hapus Meja
+    Route::post('tables/delete-area', [TableController::class, 'deleteArea']); // [BARU] Hapus Area
+    Route::post('tables/rename-area', [TableController::class, 'renameArea']); // [BARU] Ganti Nama Area
 
     // --- EXPENSES ---
     Route::get('/expenses', [ExpenseController::class, 'index']); 
