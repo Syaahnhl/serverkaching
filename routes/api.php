@@ -6,19 +6,19 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 // ==============================================================================
-//  IMPORT CONTROLLER (SEMUA SUDAH PINDAH KE FOLDER API)
+//  IMPORT CONTROLLER
 // ==============================================================================
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Api\AnalysisController;
-use App\Http\Controllers\Api\TransactionController; // [FIX] Tambah \Api
-use App\Http\Controllers\Api\MenuController;        // [FIX] Tambah \Api
-use App\Http\Controllers\Api\KitchenController;     // [FIX] Tambah \Api
-use App\Http\Controllers\Api\ExpenseController;     // [FIX] Tambah \Api
-use App\Http\Controllers\Api\CashFlowController;    // [FIX] Tambah \Api
-use App\Http\Controllers\Api\ReservationController; // [FIX] Tambah \Api
-use App\Http\Controllers\Api\TableController;       // [FIX] Tambah \Api
-use App\Http\Controllers\Api\SettingController;     // [FIX] Tambah \Api
+use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\MenuController;
+use App\Http\Controllers\Api\KitchenController;
+use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\CashFlowController;
+use App\Http\Controllers\Api\ReservationController;
+use App\Http\Controllers\Api\TableController;
+use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\DashboardController;
 
 /*
@@ -40,7 +40,6 @@ Route::get('/fix-kds', function() {
         ->whereDate('created_at', Carbon::today())
         ->where('status', 'Proses')
         ->update(['status' => 'Served']);
-        
     return "KDS Berhasil Dibersihkan! Silakan mulai order baru.";
 });
 
@@ -48,7 +47,6 @@ Route::get('/fix-kds', function() {
 |--------------------------------------------------------------------------
 | 2. PRIVATE ROUTES (Harus Login / Punya Token)
 |--------------------------------------------------------------------------
-| Semua route di sini otomatis membaca data User yang sedang login (SaaS)
 */
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -68,7 +66,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/shift/open', [ShiftController::class, 'openShift']);
     Route::post('/shift/close', [ShiftController::class, 'closeShift']);
     Route::post('/shift/upload-report', [ShiftController::class, 'uploadReport']);
-    Route::get('/shift/history', [ShiftController::class, 'getHistory']); // Pastikan nama fungsi di controller: getHistory
+    Route::get('/shift/history', [ShiftController::class, 'getHistory']);
 
     // --- TRANSACTIONS ---
     Route::get('/transactions/sync', [TransactionController::class, 'apiSync']); 
@@ -81,8 +79,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- MENUS ---
     Route::get('/menus', [MenuController::class, 'index']);
     Route::post('/menus', [MenuController::class, 'store']);
-    Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']); // Pastikan nama fungsi: updateStock
-    Route::delete('/menus/{id}', [MenuController::class, 'destroy']); // [TAMBAHAN] Biar bisa hapus menu
+    
+    Route::put('/menus/{id}', [MenuController::class, 'update']);
+    
+    Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']);
+    Route::delete('/menus/{id}', [MenuController::class, 'destroy']);
 
     // --- KITCHEN (KDS) ---
     Route::get('/kitchen/orders', [TransactionController::class, 'getKitchenOrders']); 
@@ -91,10 +92,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- TABLES ---
     Route::get('/tables', [TableController::class, 'index']);
-    Route::post('/tables', [TableController::class, 'store']); // [BARU] Tambah Meja
-    Route::delete('/tables/{id}', [TableController::class, 'destroy']); // [BARU] Hapus Meja
-    Route::post('tables/delete-area', [TableController::class, 'deleteArea']); // [BARU] Hapus Area
-    Route::post('tables/rename-area', [TableController::class, 'renameArea']); // [BARU] Ganti Nama Area
+    Route::post('/tables', [TableController::class, 'store']);
+    Route::delete('/tables/{id}', [TableController::class, 'destroy']);
+    Route::post('tables/delete-area', [TableController::class, 'deleteArea']);
+    Route::post('tables/rename-area', [TableController::class, 'renameArea']);
 
     // --- EXPENSES ---
     Route::get('/expenses', [ExpenseController::class, 'index']); 

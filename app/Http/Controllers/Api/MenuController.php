@@ -14,20 +14,34 @@ class MenuController extends Controller
     // 1. TAMPILKAN SEMUA MENU
     public function index()
     {
-        $userId = Auth::id();
-        $menus = Menu::where('user_id', $userId)
-                     ->where('is_available', 1)
-                     ->orderBy('name', 'asc')
-                     ->get();
-        
-        $menus->transform(function ($menu) {
-            if ($menu->image_url && !str_starts_with($menu->image_url, 'http')) {
-                $menu->image_url = asset('storage/' . $menu->image_url);
-            }
-            return $menu;
-        });
+        try {
+            $userId = Auth::id();
+            
+            // Pastikan model Menu sudah di-import: use App\Models\Menu;
+            $menus = Menu::where('user_id', $userId)
+                        ->where('is_available', 1)
+                        ->orderBy('name', 'asc')
+                        ->get();
+            
+            // Transform URL Gambar
+            $menus->transform(function ($menu) {
+                if ($menu->image_url && !str_starts_with($menu->image_url, 'http')) {
+                    $menu->image_url = asset('storage/' . $menu->image_url);
+                }
+                
+                // [OPSIONAL] Pastikan tipe data benar sebelum dikirim
+                $menu->stock = (float) $menu->stock; 
+                $menu->is_kds = (boolean) $menu->is_kds;
+                
+                return $menu;
+            });
 
-        return response()->json(['status' => 'success', 'data' => $menus], 200);
+            return response()->json(['status' => 'success', 'data' => $menus], 200);
+
+        } catch (\Exception $e) {
+            // Ini akan membantu kita melihat error di response API jika server crash
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
     }
 
     // 2. SIMPAN MENU BARU
@@ -85,9 +99,9 @@ class MenuController extends Controller
             'name' => 'required|string',
             'category' => 'required|string',
             'unit' => 'required|string',
-            'price' => 'required|numeric',
-            'cost_price' => 'required|numeric',
-            'stock' => 'required|numeric',
+            'price' => 'required', // Removed strict |numeric to allow string numbers like "15000"
+            'cost_price' => 'required',
+            'stock' => 'required',
             'is_kds' => 'required' 
         ]);
 
