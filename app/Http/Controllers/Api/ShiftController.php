@@ -109,18 +109,24 @@ class ShiftController extends Controller // [FIX] Otomatis baca Controller di fo
     // 3. CEK STATUS SHIFT (Untuk Sinkronisasi Awal)
     public function checkShift(Request $request)
     {
-        $cashierName = $request->query('cashier_name');
-        
-        $shift = Shift::where('user_id', Auth::id()) // [SaaS]
-                      ->where('cashier_name', $cashierName)
-                      ->where('status', 'open')
-                      ->latest()
-                      ->first();
-                      
+        // Cari shift terbuka MANAPUN milik User ID ini (SaaS Mode)
+        $shift = Shift::where('user_id', Auth::id())
+                    ->where('status', 'open')
+                    ->latest()
+                    ->first();
+                    
         if ($shift) {
-            return response()->json(['status' => 'open', 'data' => $shift]);
+            // Jika ada shift terbuka (misal dibuka oleh HP A), 
+            // HP B akan menerima data ini dan otomatis ikut 'Open'
+            return response()->json([
+                'status' => 'open', 
+                'data' => $shift
+            ]);
         } else {
-            return response()->json(['status' => 'closed', 'data' => null]);
+            return response()->json([
+                'status' => 'closed', 
+                'data' => null
+            ]);
         }
     }
 
