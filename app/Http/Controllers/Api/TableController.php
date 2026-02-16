@@ -29,6 +29,10 @@ class TableController extends Controller
 
         return response()->json([
             'status' => 'success',
+            // [TAMBAHAN DEBUG] Kirim ID user ke Android
+            // Cek Logcat Android nanti: apakah debug_user_id sama dengan user_id di phpMyAdmin?
+            'debug_user_id' => $userId, 
+            'total_tables' => $tables->count(),
             'data' => $tables
         ], 200);
     }

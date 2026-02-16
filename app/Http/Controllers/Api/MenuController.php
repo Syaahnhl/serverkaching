@@ -91,15 +91,17 @@ class MenuController extends Controller
     // 3. UPDATE DETAIL MENU (TERMASUK KDS & GAMBAR)
     public function update(Request $request, $id)
     {
+        // 1. Cari Menu milik User yang sedang login
         $menu = Menu::where('id', $id)->where('user_id', Auth::id())->first();
 
         if (!$menu) return response()->json(['status' => 'error', 'message' => 'Menu tidak ditemukan'], 404);
 
+        // 2. Validasi
         $validator = Validator::make($request->all(), [
             'name' => 'required|string',
             'category' => 'required|string',
             'unit' => 'required|string',
-            'price' => 'required', // Removed strict |numeric to allow string numbers like "15000"
+            'price' => 'required', // Boleh string angka
             'cost_price' => 'required',
             'stock' => 'required',
             'is_kds' => 'required' 
@@ -107,18 +109,19 @@ class MenuController extends Controller
 
         if ($validator->fails()) return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
 
-        // KUNCI: Ambil path asli dari DB (menus/foto.jpg) sebelum diubah jadi URL http oleh transform
+        // 3. Handle Gambar
         $currentPath = $menu->getRawOriginal('image_url'); 
 
         if ($request->hasFile('image')) {
-            // Hapus file lama jika ada
+            // Hapus file lama jika ada dan simpan baru
             if ($currentPath) {
                 Storage::disk('public')->delete($currentPath);
             }
-            // Simpan file baru
             $currentPath = $request->file('image')->store('menus', 'public');
         }
 
+        // 4. Update Database
+        // [FIX] Gunakan $request->input('...') dan filter_var untuk konversi string "1"/"0" ke Boolean
         $menu->update([
             'name' => $request->name,
             'category' => $request->category,
@@ -126,18 +129,27 @@ class MenuController extends Controller
             'cost_price' => $request->cost_price,
             'stock' => $request->stock,
             'unit' => $request->unit,
-            'has_variant' => filter_var($request->has_variant, FILTER_VALIDATE_BOOLEAN),
-            'is_kds' => filter_var($request->is_kds, FILTER_VALIDATE_BOOLEAN), // FIX KDS
+            
+            // Konversi String "true"/"1" jadi Boolean
+            'has_variant' => filter_var($request->input('has_variant'), FILTER_VALIDATE_BOOLEAN),
+            
+            // [FIX UTAMA] Pastikan input is_kds ditangkap dengan benar
+            'is_kds' => filter_var($request->input('is_kds'), FILTER_VALIDATE_BOOLEAN), 
+            
             'description' => $request->description,
             'image_url' => $currentPath,
         ]);
 
-        // Kirim balik URL lengkap ke Android agar gambar langsung berubah
+        // 5. Format URL Gambar untuk response
         if ($menu->image_url && !str_starts_with($menu->image_url, 'http')) {
             $menu->image_url = asset('storage/' . $menu->image_url);
         }
 
-        return response()->json(['status' => 'success', 'message' => 'Menu diperbarui', 'data' => $menu], 200);
+        return response()->json([
+            'status' => 'success', 
+            'message' => 'Menu diperbarui', 
+            'data' => $menu
+        ], 200);
     }
 
     // 4. HAPUS MENU TOTAL

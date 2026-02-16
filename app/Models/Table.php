@@ -12,8 +12,15 @@ class Table extends Model
     protected $fillable = [
         'user_id',
         'number',
-        'area',        // <--- WAJIB DITAMBAHKAN DI SINI
-        'status',      // Tambahkan juga ini (tadi ada di controller 'status' => 'Kosong')
+        'area',
+        'status',
         'is_occupied'
+    ];
+
+    // [TAMBAHAN WAJIB] Casting tipe data
+    // Ini memaksa PHP mengubah 0/1 menjadi false/true di JSON
+    protected $casts = [
+        'is_occupied' => 'boolean',
+        'number' => 'string' // Biar aman kalau ada nomor meja "01"
     ];
 }

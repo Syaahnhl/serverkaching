@@ -87,7 +87,11 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
                         'total_amount' => $request->total_amount,
                         'pay_amount' => $request->pay_amount,
                         'status' => $request->input('status', $existing->status), 
-                        'payment_method' => $request->payment_method, 
+                        'payment_method' => $request->payment_method,
+                        
+                        // [TAMBAHAN WAJIB] Agar status Reservasi tersimpan saat di-update
+                        'reservation_id' => $request->input('reservation_id', 0),
+                        
                         'updated_at' => now()
                     ]);
 
@@ -292,16 +296,26 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
     public function getKitchenOrders()
     {
         $orders = DB::table('transactions')
-                    ->where('user_id', Auth::id()) // [SaaS] Filter User
+                    ->where('user_id', Auth::id())
                     ->whereNotIn('status', ['Selesai', 'Batal', 'Served']) 
                     ->orderBy('created_at', 'asc') 
                     ->get();
 
         $data = $orders->map(function ($order) {
             $order->items = DB::table('transaction_items')
-                              ->where('transaction_id', $order->id)
-                              // Item otomatis aman karena transaksi induknya sudah difilter
-                              ->get();
+                            ->where('transaction_id', $order->id)
+                            ->get();
+
+            // [SOLUSI FINAL] Pastikan handling null aman
+            // Ambil ID reservasi, jika null anggap 0
+            $resId = isset($order->reservation_id) ? (int)$order->reservation_id : 0;
+
+            if ($resId > 0) {
+                $order->order_type = 'Reservasi';
+            } else {
+                $order->order_type = 'Dine In'; 
+            }
+
             return $order;
         });
 
