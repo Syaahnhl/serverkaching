@@ -30,7 +30,7 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 
-// Debugging Tool (Reset Status Harian)
+// Debugging Tool (Reset Status Harian KDS)
 Route::get('/fix-kds', function() {
     DB::table('transaction_items')
         ->whereDate('created_at', Carbon::today())
@@ -69,8 +69,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/shift/history', [ShiftController::class, 'getHistory']);
 
     // --- TRANSACTIONS ---
-    Route::get('/transactions/sync', [TransactionController::class, 'apiSync']); 
-    Route::get('/transactions', [TransactionController::class, 'index']); 
+    Route::get('/transactions/sync', [TransactionController::class, 'apiSync']); // Sync data antar HP
+    Route::get('/transactions', [TransactionController::class, 'index']); // Lihat history
     Route::post('/transactions', [TransactionController::class, 'store']);
     Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
     Route::post('/transactions/{id}/complete', [TransactionController::class, 'complete']);
@@ -80,7 +80,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/menus', [MenuController::class, 'index']);
     Route::post('/menus', [MenuController::class, 'store']);
     
-    Route::put('/menus/{id}', [MenuController::class, 'update']);
+    // [KOREKSI KRITIS] Gunakan POST untuk Update agar upload gambar (Multipart) berjalan lancar
+    // Android tetap mengirim field _method: PUT, tapi route harus POST
+    Route::post('/menus/{id}', [MenuController::class, 'update']);
     
     Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']);
     Route::delete('/menus/{id}', [MenuController::class, 'destroy']);
@@ -93,20 +95,25 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- TABLES ---
     Route::get('/tables', [TableController::class, 'index']);
     Route::post('/tables', [TableController::class, 'store']);
-    Route::delete('/tables/{id}', [TableController::class, 'destroy']);
+    Route::delete('/tables/{id}', [TableController::class, 'destroy']); // DELETE method untuk hapus
+    // Route khusus untuk update/rename area (pake POST aman)
     Route::post('tables/delete-area', [TableController::class, 'deleteArea']);
     Route::post('tables/rename-area', [TableController::class, 'renameArea']);
+    // Jika ada update meja spesifik
+    Route::put('/tables/{id}', [TableController::class, 'update']); // Update meja (number/area)
 
     // --- EXPENSES ---
-    Route::get('/expenses', [ExpenseController::class, 'index']); 
+    Route::get('/expenses', [ExpenseController::class, 'index']); // [CHECK] Sudah ada GET
     Route::post('/expenses', [ExpenseController::class, 'store']);
 
     // --- CASH FLOW & RESERVATION ---
-    Route::get('/cash-flows', [CashFlowController::class, 'index']); 
+    Route::get('/cash-flows', [CashFlowController::class, 'index']); // [CHECK] Sudah ada GET
     Route::post('/cash-flows', [CashFlowController::class, 'store']); 
-    Route::get('/reservations', [ReservationController::class, 'index']); 
+    
+    Route::get('/reservations', [ReservationController::class, 'index']); // [CHECK] Sudah ada GET
     Route::post('/reservations', [ReservationController::class, 'store']);
-    Route::post('/reservations/{id}/status', [ReservationController::class, 'updateStatus']); // Opsional: Untuk update status
+    Route::post('/reservations/{id}/status', [ReservationController::class, 'updateStatus']);
+
     // --- ANALYSIS ---
     Route::get('/analysis/menu-performance', [AnalysisController::class, 'getMenuAnalysis']);
     
