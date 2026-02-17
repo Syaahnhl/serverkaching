@@ -104,8 +104,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- CASH FLOW & RESERVATION ---
     Route::get('/cash-flows', [CashFlowController::class, 'index']); 
     Route::post('/cash-flows', [CashFlowController::class, 'store']); 
+    Route::get('/reservations', [ReservationController::class, 'index']); 
     Route::post('/reservations', [ReservationController::class, 'store']);
-
+    Route::post('/reservations/{id}/status', [ReservationController::class, 'updateStatus']); // Opsional: Untuk update status
     // --- ANALYSIS ---
     Route::get('/analysis/menu-performance', [AnalysisController::class, 'getMenuAnalysis']);
     

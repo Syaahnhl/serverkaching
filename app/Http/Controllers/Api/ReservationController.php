@@ -57,17 +57,16 @@ class ReservationController extends Controller
     {
         $userId = Auth::id();
 
-        // Ambil reservasi mulai hari ini ke depan milik user ini
-        $reservations = Reservation::where('user_id', $userId) // [SaaS]
-            ->where('date', '>=', Carbon::today()->toDateString())
-            ->orderBy('date', 'asc')
+        // [FIX] Hapus filter tanggal sementara agar semua data muncul di HP A
+        // Kita hanya filter berdasarkan User ID pemilik resto.
+        $reservations = Reservation::where('user_id', $userId)
+            ->orderBy('date', 'desc') // Urutkan dari yang terbaru (biar kelihatan inputan baru)
             ->orderBy('time', 'asc')
             ->get();
 
-        // [FIX] Return JSON (Bukan View)
         return response()->json([
             'status' => 'success',
-            'data' => $reservations
+            'data' => $reservations 
         ], 200);
     }
     
