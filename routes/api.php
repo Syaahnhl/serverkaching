@@ -82,7 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // [KOREKSI KRITIS] Gunakan POST untuk Update agar upload gambar (Multipart) berjalan lancar
     // Android tetap mengirim field _method: PUT, tapi route harus POST
-    Route::post('/menus/{id}', [MenuController::class, 'update']);
+    Route::put('/menus/{id}', [MenuController::class, 'update']);
     
     Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']);
     Route::delete('/menus/{id}', [MenuController::class, 'destroy']);
@@ -91,6 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/kitchen/orders', [TransactionController::class, 'getKitchenOrders']); 
     Route::post('/kitchen/orders/{id}/done', [TransactionController::class, 'markAsServed']);
     Route::post('/kitchen/items/{id}/status', [TransactionController::class, 'updateItemStatus']);
+    Route::post('/kitchen/items/{id}/increment', [TransactionController::class, 'incrementItemProgress']);
 
     // --- TABLES ---
     Route::get('/tables', [TableController::class, 'index']);

@@ -91,20 +91,18 @@ class MenuController extends Controller
     // 3. UPDATE DETAIL MENU (TERMASUK KDS & GAMBAR)
     public function update(Request $request, $id)
     {
-        // 1. Cari Menu milik User yang sedang login
+        // 1. Cari Menu
         $menu = Menu::where('id', $id)->where('user_id', Auth::id())->first();
-
         if (!$menu) return response()->json(['status' => 'error', 'message' => 'Menu tidak ditemukan'], 404);
 
-        // 2. Validasi
+        // 2. Validasi (Gunakan 'nullable' untuk image agar tidak wajib upload ulang)
         $validator = Validator::make($request->all(), [
             'name' => 'required|string',
             'category' => 'required|string',
-            'unit' => 'required|string',
-            'price' => 'required', // Boleh string angka
+            'price' => 'required',
             'cost_price' => 'required',
             'stock' => 'required',
-            'is_kds' => 'required' 
+            // Hapus validasi strict boolean disini karena Multipart mengirimnya sbg string
         ]);
 
         if ($validator->fails()) return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
@@ -113,15 +111,18 @@ class MenuController extends Controller
         $currentPath = $menu->getRawOriginal('image_url'); 
 
         if ($request->hasFile('image')) {
-            // Hapus file lama jika ada dan simpan baru
-            if ($currentPath) {
+            // Hapus file lama fisik jika ada
+            if ($currentPath && Storage::disk('public')->exists($currentPath)) {
                 Storage::disk('public')->delete($currentPath);
             }
             $currentPath = $request->file('image')->store('menus', 'public');
         }
 
-        // 4. Update Database
-        // [FIX] Gunakan $request->input('...') dan filter_var untuk konversi string "1"/"0" ke Boolean
+        // 4. Konversi Data String Multipart ke Boolean/Angka yang benar
+        $isKds = filter_var($request->input('is_kds'), FILTER_VALIDATE_BOOLEAN);
+        $hasVariant = filter_var($request->input('has_variant'), FILTER_VALIDATE_BOOLEAN);
+
+        // 5. Update Database
         $menu->update([
             'name' => $request->name,
             'category' => $request->category,
@@ -129,18 +130,13 @@ class MenuController extends Controller
             'cost_price' => $request->cost_price,
             'stock' => $request->stock,
             'unit' => $request->unit,
-            
-            // Konversi String "true"/"1" jadi Boolean
-            'has_variant' => filter_var($request->input('has_variant'), FILTER_VALIDATE_BOOLEAN),
-            
-            // [FIX UTAMA] Pastikan input is_kds ditangkap dengan benar
-            'is_kds' => filter_var($request->input('is_kds'), FILTER_VALIDATE_BOOLEAN), 
-            
+            'has_variant' => $hasVariant,
+            'is_kds' => $isKds, // Pastikan masuk sebagai boolean 1/0
             'description' => $request->description,
             'image_url' => $currentPath,
         ]);
 
-        // 5. Format URL Gambar untuk response
+        // Format URL untuk response
         if ($menu->image_url && !str_starts_with($menu->image_url, 'http')) {
             $menu->image_url = asset('storage/' . $menu->image_url);
         }

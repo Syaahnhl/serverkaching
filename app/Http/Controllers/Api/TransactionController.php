@@ -507,4 +507,45 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
+
+    public function incrementItemProgress(Request $request, $id)
+    {
+        $userId = Auth::id(); // [SaaS] Pastikan data milik user ini
+
+        // 1. Cari Item
+        $item = DB::table('transaction_items')
+            ->where('id', $id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$item) {
+            return response()->json(['message' => 'Item tidak ditemukan'], 404);
+        }
+
+        // 2. Cek apakah masih bisa ditambah?
+        if ($item->qty_done < $item->qty) {
+            
+            $newQtyDone = $item->qty_done + 1;
+            
+            // Logic Status: Jika sudah penuh, otomatis DONE. Jika belum, COOKING.
+            $newStatus = ($newQtyDone >= $item->qty) ? 'Done' : 'Cooking';
+
+            DB::table('transaction_items')
+                ->where('id', $id)
+                ->update([
+                    'qty_done' => $newQtyDone,
+                    'status' => $newStatus,
+                    'updated_at' => now()
+                ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Progres diperbarui',
+                'qty_done' => $newQtyDone,
+                'item_status' => $newStatus
+            ]);
+        }
+
+        return response()->json(['message' => 'Item sudah selesai semua'], 400);
+    }
 }
