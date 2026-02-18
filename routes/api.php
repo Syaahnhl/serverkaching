@@ -99,6 +99,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route khusus untuk update/rename area (pake POST aman)
     Route::post('tables/delete-area', [TableController::class, 'deleteArea']);
     Route::post('tables/rename-area', [TableController::class, 'renameArea']);
+    
+    // [BARU] Route Update Status (Kosongkan Meja)
+    Route::post('/tables/{id}/status', [TableController::class, 'updateStatus']); // <--- TAMBAHKAN INI
+
     // Jika ada update meja spesifik
     Route::put('/tables/{id}', [TableController::class, 'update']); // Update meja (number/area)
 
@@ -113,6 +117,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reservations', [ReservationController::class, 'index']); // [CHECK] Sudah ada GET
     Route::post('/reservations', [ReservationController::class, 'store']);
     Route::post('/reservations/{id}/status', [ReservationController::class, 'updateStatus']);
+    Route::delete('/reservations/{id}', [ReservationController::class, 'destroy']);
 
     // --- ANALYSIS ---
     Route::get('/analysis/menu-performance', [AnalysisController::class, 'getMenuAnalysis']);

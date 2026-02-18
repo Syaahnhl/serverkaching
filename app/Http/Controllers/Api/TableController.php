@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB; 
 use App\Models\Table;
 
 class TableController extends Controller
@@ -124,14 +125,44 @@ class TableController extends Controller
     // 5. UPDATE STATUS MEJA (Manual/Internal)
     public function updateStatus(Request $request, $id)
     {
-        $table = Table::where('id', $id)->where('user_id', Auth::id())->first();
+        // [FIX 1] Paksa casting ID dan Status ke Integer
+        $tableId = (int)$id; 
+        $userId = Auth::id();
+        $isOccupied = (int)$request->is_occupied; // Pastikan jadi angka 0 atau 1
 
-        if ($table) {
-            $table->update(['is_occupied' => $request->is_occupied]);
-            return response()->json(['status' => 'success']);
+        // [FIX 2] LOGIKA ACTIVE TRX ID (Karena kolomnya SUDAH ADA sekarang)
+        // Jika meja dikosongkan (0) -> Set active_trx_id jadi NULL (Biar bersih).
+        // Jika meja diisi (1) -> Biarkan active_trx_id tetap seperti nilai lamanya (DB::raw).
+        $activeTrxValue = ($isOccupied === 0) ? null : DB::raw('active_trx_id');
+
+        // Gunakan DB::table agar lebih aman dan cepat
+        $affected = DB::table('tables')
+            ->where('id', $tableId)
+            ->where('user_id', $userId)
+            ->update([
+                'is_occupied' => $isOccupied,
+                'active_trx_id' => $activeTrxValue, // <--- BARIS INI DIAKTIFKAN KEMBALI
+                'updated_at' => now()
+            ]);
+
+        if ($affected) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Status meja berhasil diupdate.'
+            ]);
         }
+
+        // Cek apakah data sebenarnya sudah sesuai? (Misal server sudah 0, dikirim 0 lagi)
+        $exists = DB::table('tables')->where('id', $tableId)->where('user_id', $userId)->exists();
         
-        return response()->json(['status' => 'error'], 404);
+        if ($exists) {
+             return response()->json(['status' => 'success', 'message' => 'Data sudah sesuai (No changes)']);
+        }
+
+        return response()->json([
+            'status' => 'error', 
+            'message' => "Gagal update. Meja ID $tableId tidak ditemukan."
+        ], 404);
     }
 
     // [BARU] 6. HAPUS SATU AREA (Hapus semua meja di area ini)

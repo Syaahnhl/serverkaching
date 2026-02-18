@@ -14,7 +14,8 @@ class Table extends Model
         'number',
         'area',
         'status',
-        'is_occupied'
+        'is_occupied',
+        'active_trx_id'
     ];
 
     // [TAMBAHAN WAJIB] Casting tipe data

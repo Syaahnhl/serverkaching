@@ -85,4 +85,23 @@ class ReservationController extends Controller
 
         return response()->json(['status' => 'success', 'message' => 'Status updated']);
     }
+
+    // [BARU] 4. API: HAPUS RESERVASI
+    public function destroy($id)
+    {
+        $reservation = Reservation::where('id', $id)
+                        ->where('user_id', Auth::id()) // Pastikan hanya bisa hapus punya sendiri
+                        ->first();
+
+        if (!$reservation) {
+            return response()->json(['status' => 'error', 'message' => 'Data tidak ditemukan'], 404);
+        }
+
+        $reservation->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Reservasi berhasil dihapus'
+        ], 200);
+    }
 }
