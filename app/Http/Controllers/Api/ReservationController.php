@@ -104,4 +104,32 @@ class ReservationController extends Controller
             'message' => 'Reservasi berhasil dihapus'
         ], 200);
     }
+
+    public function updateNotes(Request $request, $id)
+    {
+        // 1. Cari Data
+        $reservation = Reservation::where('id', $id)
+                        ->where('user_id', Auth::id()) // Security check
+                        ->first();
+
+        if (!$reservation) {
+            return response()->json(['status' => 'error', 'message' => 'Reservasi tidak ditemukan'], 404);
+        }
+
+        // 2. Validasi (Boleh string kosong jika menu dihapus semua)
+        // Kita gunakan 'nullable' agar tidak error jika dikirim string kosong
+        $request->validate([
+            'notes' => 'nullable|string',
+        ]);
+
+        // 3. Update Kolom Notes
+        $reservation->notes = $request->notes;
+        $reservation->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Catatan berhasil diperbarui',
+            'data' => $reservation
+        ], 200);
+    }
 }
