@@ -90,8 +90,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- KITCHEN (KDS) ---
     Route::get('/kitchen/orders', [TransactionController::class, 'getKitchenOrders']); 
     Route::post('/kitchen/orders/{id}/done', [TransactionController::class, 'markAsServed']);
-    Route::post('/kitchen/items/{id}/status', [TransactionController::class, 'updateItemStatus']);
-    Route::post('/kitchen/items/{id}/increment', [TransactionController::class, 'incrementItemProgress']);
+    Route::post('kitchen/items/{id}/status', [KitchenController::class, 'updateItemStatus']);
+    Route::post('kitchen/items/{id}/increment', [KitchenController::class, 'incrementItemQty']);
 
     // --- TABLES ---
     Route::get('/tables', [TableController::class, 'index']);

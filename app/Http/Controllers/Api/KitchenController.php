@@ -90,4 +90,70 @@ class KitchenController extends Controller
             return response()->json(['message' => 'Pesanan tidak ditemukan atau bukan milik Anda'], 404);
         });
     }
+
+    // 3. [BARU] UPDATE STATUS PER ITEM (Dan Reset Jika Undo)
+    public function updateItemStatus(Request $request, $id)
+    {
+        $userId = Auth::id();
+        $newStatus = $request->input('status');
+
+        // Pastikan item ini ada dan merupakan milik user ini (SaaS Security)
+        $item = DB::table('transaction_items')
+            ->join('transactions', 'transaction_items.transaction_id', '=', 'transactions.id')
+            ->where('transaction_items.id', $id)
+            ->where('transactions.user_id', $userId)
+            ->select('transaction_items.id', 'transaction_items.qty')
+            ->first();
+
+        if (!$item) {
+            return response()->json(['status' => 'error', 'message' => 'Item tidak ditemukan'], 404);
+        }
+
+        $updateData = ['status' => $newStatus];
+
+        // [KUNCI FIX UNDO] Jika status kembali ke 'Proses' atau 'Queued', kembalikan progress ke 0
+        if (strtolower($newStatus) == 'proses' || strtolower($newStatus) == 'queued') {
+            $updateData['qty_done'] = 0;
+        } 
+        // Opsional: Jika diklik 'Done', pastikan qty_done full sesuai qty asli
+        else if (strtolower($newStatus) == 'done') {
+            $updateData['qty_done'] = $item->qty;
+        }
+
+        DB::table('transaction_items')
+            ->where('id', $id)
+            ->update($updateData);
+
+        return response()->json(['status' => 'success'], 200);
+    }
+
+    // 4. [BARU] TAMBAH PROGRESS CICILAN MASAK (Increment Qty Done)
+    public function incrementItemQty($id)
+    {
+        $userId = Auth::id();
+
+        // Cari item & pastikan milik toko ini
+        $item = DB::table('transaction_items')
+            ->join('transactions', 'transaction_items.transaction_id', '=', 'transactions.id')
+            ->where('transaction_items.id', $id)
+            ->where('transactions.user_id', $userId)
+            ->select('transaction_items.id', 'transaction_items.qty', 'transaction_items.qty_done')
+            ->first();
+
+        if (!$item) {
+            return response()->json(['status' => 'error', 'message' => 'Item tidak ditemukan'], 404);
+        }
+
+        $currentDone = $item->qty_done ?? 0;
+        $maxQty = $item->qty;
+
+        // Cegah agar qty_done tidak kebablasan melebihi pesanan
+        if ($currentDone < $maxQty) {
+            DB::table('transaction_items')
+                ->where('id', $id)
+                ->update(['qty_done' => $currentDone + 1]);
+        }
+
+        return response()->json(['status' => 'success'], 200);
+    }
 }
