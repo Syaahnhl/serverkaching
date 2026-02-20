@@ -67,6 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/shift/close', [ShiftController::class, 'closeShift']);
     Route::post('/shift/upload-report', [ShiftController::class, 'uploadReport']);
     Route::get('/shift/history', [ShiftController::class, 'getHistory']);
+    Route::get('/shift/check', [ShiftController::class, 'checkShift']);
 
     // --- TRANSACTIONS ---
     Route::get('/transactions/sync', [TransactionController::class, 'apiSync']); // Sync data antar HP
@@ -83,7 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // [KOREKSI KRITIS] Gunakan POST untuk Update agar upload gambar (Multipart) berjalan lancar
     // Android tetap mengirim field _method: PUT, tapi route harus POST
-    Route::put('/menus/{id}', [MenuController::class, 'update']);
+    Route::post('/menus/{id}', [MenuController::class, 'update']);
     
     Route::post('/menus/{id}/stock', [MenuController::class, 'updateStock']);
     Route::delete('/menus/{id}', [MenuController::class, 'destroy']);
@@ -91,16 +92,16 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- KITCHEN (KDS) ---
     Route::get('/kitchen/orders', [TransactionController::class, 'getKitchenOrders']); 
     Route::post('/kitchen/orders/{id}/done', [TransactionController::class, 'markAsServed']);
-    Route::post('kitchen/items/{id}/status', [KitchenController::class, 'updateItemStatus']);
-    Route::post('kitchen/items/{id}/increment', [KitchenController::class, 'incrementItemQty']);
+    Route::post('/kitchen/items/{id}/status', [KitchenController::class, 'updateItemStatus']);
+    Route::post('/kitchen/items/{id}/increment', [KitchenController::class, 'incrementItemQty']);
 
     // --- TABLES ---
     Route::get('/tables', [TableController::class, 'index']);
     Route::post('/tables', [TableController::class, 'store']);
     Route::delete('/tables/{id}', [TableController::class, 'destroy']); // DELETE method untuk hapus
     // Route khusus untuk update/rename area (pake POST aman)
-    Route::post('tables/delete-area', [TableController::class, 'deleteArea']);
-    Route::post('tables/rename-area', [TableController::class, 'renameArea']);
+    Route::post('/tables/delete-area', [TableController::class, 'deleteArea']);
+    Route::post('/tables/rename-area', [TableController::class, 'renameArea']);
     
     // [BARU] Route Update Status (Kosongkan Meja)
     Route::post('/tables/{id}/status', [TableController::class, 'updateStatus']); // <--- TAMBAHKAN INI
