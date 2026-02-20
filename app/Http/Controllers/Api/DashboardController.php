@@ -41,7 +41,7 @@ class DashboardController extends Controller
             ->where('user_id', $userId)
             ->where('created_at_device', '>=', $startTime) // [FIX] Filter Waktu Shift
             ->where('status', '!=', 'Batal')
-            ->sum('total_amount');
+            ->sum('pay_amount');
 
         $todayCount = DB::table('transactions')
             ->where('user_id', $userId)

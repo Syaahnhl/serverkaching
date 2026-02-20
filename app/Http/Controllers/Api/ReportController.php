@@ -24,7 +24,7 @@ class ReportController extends Controller
             ->where('user_id', $userId) // [SaaS]
             ->whereBetween('created_at_device', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->where('status', '!=', 'Batal')
-            ->sum('total_amount');
+            ->sum('pay_amount');
 
         // B. Total Transaksi (Jumlah Struk)
         $trxCount = DB::table('transactions')
