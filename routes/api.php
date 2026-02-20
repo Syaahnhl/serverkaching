@@ -75,6 +75,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/transactions/{id}/cancel', [TransactionController::class, 'cancel']);
     Route::post('/transactions/{id}/complete', [TransactionController::class, 'complete']);
     Route::post('/transactions/{id}/refund-item', [TransactionController::class, 'refundItem']);
+    Route::post('/transactions/{id}/view-mode', [TransactionController::class, 'toggleKdsViewMode']);
 
     // --- MENUS ---
     Route::get('/menus', [MenuController::class, 'index']);

@@ -33,9 +33,13 @@ class KitchenController extends Controller
             $hasActiveItems = false;
 
             $processedItems = $items->map(function ($item) use (&$hasActiveItems) {
-                // Item dianggap AKTIF jika belum Served/Selesai
-                if ($item->status == 'Served' || $item->status == 'Selesai') {
+                // [UPDATE] Tambahkan kondisi 'PreOrder' agar terkunci
+                if ($item->status == 'Served' || $item->status == 'Selesai' || $item->status == 'PreOrder') {
                     $item->view_mode = 'locked';
+                    // Jika PreOrder, tetap anggap ada item aktif (biar tiketnya muncul di layar koki)
+                    if ($item->status == 'PreOrder') {
+                        $hasActiveItems = true; 
+                    }
                 } else {
                     $item->view_mode = 'active';
                     $hasActiveItems = true;

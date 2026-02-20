@@ -191,6 +191,9 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
                         ->update(['status' => 'Selesai']);
                 }
 
+                $isPrePrepReservation = ($request->input('reservation_id', 0) > 0) && ($request->pay_amount == 0);
+                $initialItemStatus = $isPrePrepReservation ? 'PreOrder' : 'Proses';
+
                 // 3. SIMPAN ITEM & POTONG STOK
                 foreach ($request->items as $item) {
                     DB::table('transaction_items')->insert([
@@ -202,7 +205,7 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
                         'note' => $item['note'] ?? null,
                         'created_at' => now(), 
                         'updated_at' => now(),
-                        'status' => 'Proses'
+                        'status' => $initialItemStatus
                     ]);
 
                     // Update Stok (Cek Kepemilikan: Jangan potong stok toko sebelah!)
@@ -547,5 +550,42 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
         }
 
         return response()->json(['message' => 'Item sudah selesai semua'], 400);
+    }
+
+    public function toggleKdsViewMode(Request $request, $id)
+    {
+        $userId = Auth::id();
+        $mode = $request->input('view_mode');
+
+        // 1. Cari transaksi (Cek ID Server atau UUID Android)
+        $transaction = DB::table('transactions')
+            ->where('user_id', $userId)
+            ->where(function ($query) use ($id) {
+                $query->where('id', $id)
+                      ->orWhere('app_uuid', $id);
+            })
+            ->first();
+
+        if (!$transaction) {
+            return response()->json(['status' => 'error', 'message' => 'Transaksi tidak ditemukan'], 404);
+        }
+
+        // 2. Ambil ID Server yang asli (Penting!)
+        $serverId = $transaction->id;
+        $itemStatus = ($mode === 'locked') ? 'PreOrder' : 'Proses';
+
+        // 3. Update Item menggunakan ID Server yang asli
+        DB::table('transaction_items')
+            ->where('transaction_id', $serverId) // Gunakan $serverId, bukan $id
+            ->whereNotIn('status', ['Refund', 'Batal'])
+            ->update([
+                'status' => $itemStatus,
+                'updated_at' => now()
+            ]);
+
+        return response()->json([
+            'status' => 'success', 
+            'message' => "Pesanan KDS berhasil di-set menjadi $mode"
+        ], 200);
     }
 }
