@@ -88,14 +88,37 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
                         'pay_amount' => $request->pay_amount,
                         'status' => $request->input('status', $existing->status), 
                         'payment_method' => $request->payment_method,
-                        
-                        // [TAMBAHAN WAJIB] Agar status Reservasi tersimpan saat di-update
                         'reservation_id' => $request->input('reservation_id', 0),
-                        
                         'updated_at' => now()
                     ]);
 
-                    // 2. Masukkan Item Tambahan
+                    // [FIX SINKRONISASI HAPUS] 1.5. Hapus item yang dibuang oleh Android
+                    if ($request->has('items')) {
+                        // Kumpulkan semua nama menu dari HP Android saat ini
+                        $incomingMenuNames = collect($request->items)->pluck('name')->toArray();
+
+                        // Cari item di Server yang TIDAK ADA di HP Android
+                        $itemsToDelete = DB::table('transaction_items')
+                            ->where('transaction_id', $existing->id)
+                            ->whereNotIn('menu_name', $incomingMenuNames)
+                            ->get();
+
+                        foreach ($itemsToDelete as $delItem) {
+                            // Kembalikan stok sebelum dihapus
+                            $menu = DB::table('menus')->where('name', $delItem->menu_name)->where('user_id', $userId)->first();
+                            if ($menu && $menu->stock != -1) {
+                                DB::table('menus')->where('id', $menu->id)->increment('stock', $delItem->qty);
+                            }
+                        }
+
+                        // Hapus item zombie dari database server!
+                        DB::table('transaction_items')
+                            ->where('transaction_id', $existing->id)
+                            ->whereNotIn('menu_name', $incomingMenuNames)
+                            ->delete();
+                    }
+
+                    // 2. Masukkan Item Tambahan (Sisa kode ke bawah biarkan sama persis)
                     if ($request->has('items')) {
                         foreach ($request->items as $item) {
                             
@@ -111,17 +134,33 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
                                 ->exists();
 
                             if (!$isDuplicate) {
+                                // [FIX LOGIKA KUNCI] 
+                                // Cek apakah item lain di transaksi ini sudah ada yang statusnya 'Proses' / 'Cooking'?
+                                // Jika ya, berarti koki sedang memasak, jadi item susulan ini biarkan 'Proses'.
+                                // Jika semuanya masih 'PreOrder', berarti item baru ini ikut dikunci 'PreOrder'.
+                                $anyActive = DB::table('transaction_items')
+                                    ->where('transaction_id', $existing->id)
+                                    ->whereIn('status', ['Proses', 'Cooking', 'Done', 'Served'])
+                                    ->exists();
+                                
+                                // Deteksi apakah ini reservasi yang belum dibayar?
+                                $isUnpaidRes = ($request->input('reservation_id', 0) > 0) && ($request->pay_amount == 0);
+                                
+                                // Jika Reservasi Belum Lunas DAN belum ada item yang dimasak -> Kunci (PreOrder)
+                                // Selain itu -> Bebaskan (Proses)
+                                $itemStatus = ($isUnpaidRes && !$anyActive) ? 'PreOrder' : 'Proses';
+
                                 // Insert Item Baru dengan USER ID
                                 DB::table('transaction_items')->insert([
                                     'transaction_id' => $existing->id,
-                                    'user_id' => $userId, // [SaaS] Item ditandai punya user ini
+                                    'user_id' => $userId, 
                                     'menu_name' => $item['name'], 
                                     'qty' => $item['qty'],
                                     'price' => $item['price'],
                                     'note' => $item['note'] ?? null,
                                     'created_at' => now(), 
                                     'updated_at' => now(),
-                                    'status' => 'Proses' 
+                                    'status' => $itemStatus // [FIX] Gunakan variabel dinamis
                                 ]);
 
                                 // Update Stok (Hanya stok di toko ini)
@@ -575,13 +614,24 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
         $itemStatus = ($mode === 'locked') ? 'PreOrder' : 'Proses';
 
         // 3. Update Item menggunakan ID Server yang asli
-        DB::table('transaction_items')
-            ->where('transaction_id', $serverId) // Gunakan $serverId, bukan $id
-            ->whereNotIn('status', ['Refund', 'Batal'])
-            ->update([
-                'status' => $itemStatus,
-                'updated_at' => now()
-            ]);
+        if ($mode === 'active') {
+            DB::table('transaction_items')
+                ->where('transaction_id', $serverId)
+                ->where('status', 'PreOrder') // Targetkan gemboknya saja
+                ->update([
+                    'status' => 'Proses', // Buka gembok jadi antrian aktif
+                    'updated_at' => now()
+                ]);
+        } else {
+            // Logika untuk mengunci ulang (jarang dipakai, tapi jaga-jaga)
+            DB::table('transaction_items')
+                ->where('transaction_id', $serverId)
+                ->whereIn('status', ['Proses', 'Queued']) // Hanya kunci yang masih antri
+                ->update([
+                    'status' => 'PreOrder',
+                    'updated_at' => now()
+                ]);
+        }
 
         return response()->json([
             'status' => 'success', 
