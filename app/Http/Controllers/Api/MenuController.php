@@ -169,9 +169,20 @@ class MenuController extends Controller
     // 5. QUICK UPDATE STOK SAJA
     public function updateStock(Request $request, $id)
     {
-        $validator = Validator::make($request->all(), [
-            'stock' => 'required|numeric'
-        ]);
+        $stockInput = $request->stock;
+    if ($stockInput === "0.0" || $stockInput === "-1.0") {
+      $stockInput = (int) $stockInput;
+    }
+
+    // 2. Validasi
+    $validator = Validator::make($request->all(), [
+      'name' => 'required|string',
+      'category' => 'required|string',
+      'price' => 'required|numeric',
+      'cost_price' => 'required|numeric',
+      'stock' => 'required|numeric',
+      'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+      ]);
 
         if ($validator->fails()) return response()->json(['status' => 'error'], 422);
 
