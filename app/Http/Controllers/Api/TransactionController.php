@@ -354,8 +354,16 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
 
             if ($resId > 0) {
                 $order->order_type = 'Reservasi';
+                // [BARU] Ambil data jadwal dari tabel reservations
+                $resInfo = DB::table('reservations')->where('id', $resId)->first();
+                if ($resInfo) {
+                $order->reservation_date = $resInfo->date;
+                $order->reservation_time = $resInfo->time;
+                }
             } else {
                 $order->order_type = 'Dine In'; 
+                $order->reservation_date = null;
+                $order->reservation_time = null;
             }
 
             return $order;
@@ -615,13 +623,19 @@ class TransactionController extends Controller // [FIX] Otomatis baca Controller
 
         // 3. Update Item menggunakan ID Server yang asli
         if ($mode === 'active') {
-            DB::table('transaction_items')
-                ->where('transaction_id', $serverId)
-                ->where('status', 'PreOrder') // Targetkan gemboknya saja
-                ->update([
-                    'status' => 'Proses', // Buka gembok jadi antrian aktif
-                    'updated_at' => now()
-                ]);
+        DB::table('transaction_items')
+            ->where('transaction_id', $serverId)
+            ->where('status', 'PreOrder')
+            ->update([
+            'status' => 'Proses',
+            'updated_at' => now()
+            ]);
+            
+        // [PENTING] Reset waktu transaksi agar timer di Dapur (KDS) mulai dari 0 menit lagi!
+        DB::table('transactions')->where('id', $serverId)->update([
+            'created_at' => now(), 
+            'created_at_device' => now()
+        ]);
         } else {
             // Logika untuk mengunci ulang (jarang dipakai, tapi jaga-jaga)
             DB::table('transaction_items')
