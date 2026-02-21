@@ -169,27 +169,22 @@ class MenuController extends Controller
     // 5. QUICK UPDATE STOK SAJA
     public function updateStock(Request $request, $id)
     {
-        $stockInput = $request->stock;
-    if ($stockInput === "0.0" || $stockInput === "-1.0") {
-      $stockInput = (int) $stockInput;
-    }
+        // 1. Validasi KHUSUS stok saja
+        $validator = Validator::make($request->all(), [
+            'stock' => 'required|numeric' // Hanya minta data stok!
+        ]);
 
-    // 2. Validasi
-    $validator = Validator::make($request->all(), [
-      'name' => 'required|string',
-      'category' => 'required|string',
-      'price' => 'required|numeric',
-      'cost_price' => 'required|numeric',
-      'stock' => 'required|numeric',
-      'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-      ]);
-
-        if ($validator->fails()) return response()->json(['status' => 'error'], 422);
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => $validator->errors()], 422);
+        }
 
         $menu = Menu::where('id', $id)->where('user_id', Auth::id())->first();
 
-        if (!$menu) return response()->json(['status' => 'error'], 404);
+        if (!$menu) {
+            return response()->json(['status' => 'error', 'message' => 'Menu tidak ditemukan'], 404);
+        }
 
+        // 2. Update Stok
         $menu->update(['stock' => $request->stock]);
 
         return response()->json([
